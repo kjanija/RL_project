@@ -22,6 +22,7 @@ class OrderAndChaosEnv(gymnasium.Env):
 
         if config is None:
             config = {}
+        self.config = config
 
         # configurable rewards
         self.illegal_move_reward = config.get("illegal_move_reward", -100)
@@ -108,7 +109,60 @@ class OrderAndChaosEnv(gymnasium.Env):
         return False
 
     def _compute_intermediate_rewards(self, row, col, symbol):
-        pass
+        """
+        We give rewards for extending lines and following teacher's strategy
+        """
+        reward = 0
+
+        # line extension rewards
+        def count_consecutive(dr, dc):
+            count = 0
+            r, c = row + dr, col + dc
+            while 0 <= r < 6 and 0 <= c < 6 and self.board[r, c] == symbol:
+                count += 1
+                r += dr
+                c += dc
+            return count
+
+        # check all 4 axes:
+        axes = [
+            ((0, 1), (0, -1)),  # horizontal
+            ((1, 0), (-1, 0)),  # vertical
+            ((1, 1), (-1, -1)), # diagonal \
+            ((1, -1), (-1, 1))  # diagonal /
+        ]
+
+        max_line_length = 0
+        for (dr1, dc1), (dr2, dc2) in axes:
+            # length = 1 (the current piece) + count in one direction + count in the opposite direction
+            length = 1 + count_consecutive(dr1, dc1) + count_consecutive(dr2, dc2)
+            if length > max_line_length:
+                max_line_length = length
+
+        # award points based on longest line
+        if max_line_length == 3:
+            reward += self.config.get("line_of_3_reward", 1)
+        elif max_line_length == 4:
+            reward += self.config.get("line_of_4_reward", 5)
+
+        # teacher strategy
+        # will put in a try catch because at the moment of writing I haven't
+        # implemented the teacher strategy
+        try:
+            opt_r, opt_c, opt_symbol = self._get_teacher_move()
+            if r == opt_r and c == opt_c and symbol == opt_symbol:
+                reward += self.config.get("teacher_move_reward", 2)
+        except NotImplementedError:
+            pass
+
+        return reward
+
+    def _get_teacher_move(self):
+        # TODO: when src/strategy.py is done, uncomment the following lines
+        # from src.strategy import get_teacher_move
+        # return get_order_winning_move(self.board)
+
+        raise NotImplementedError("Teacher strategy not implemented yet.")
 
     def _get_chaos_move(self):
         """

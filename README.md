@@ -9,7 +9,7 @@ We will model the problem as a Markov Decision Problem since both players can se
 The state represents the current board configuration. Since we have 36 cells, each of which can be either *empty*, *X* or *O*, we have the following state space:
 
 $$
-S = \Big\{(\text{row}, \text{col}, \text{symbol}) \;|\; \text{row},\text{col}\in[0,5], \text{symbol}\in\{\empty, X, O\}\Big\}
+S = \Big\{(\text{row}, \text{col}, \text{symbol}) \;|\; \text{row},\text{col}\in[0,5], \text{symbol}\in\{\emptyset, X, O\}\Big\}
 $$
 
 ## Actions
@@ -20,7 +20,9 @@ Let $\mathcal C= \Big\{ (r, c)\in\mathbb Z^2 \;|\; 0\leq r, c \leq 5 \Big\}$ and
 
 Then the action state is
 
-$$A = \mathcal C \times \Sigma = \Big\{(r, c, \sigma)\;|\;(r,c)\in\mathcal C,\;\sigma\in\Sigma\Big\}$$
+$$
+A = \mathcal C \times \Sigma = \Big\{(r, c, \sigma)\;|\;(r,c)\in\mathcal C,\;\sigma\in\Sigma\Big\}
+$$
 
 that has a size of $|A| = |\mathcal C|\times|\Sigma| = 36\times 2 = 72$
 

@@ -1,0 +1,6 @@
+[project]
+name = "rl-project"
+version = "0.1.0"
+description = "Exam project for Reinforcement Learning"
+requires-python = ">=3.13"
+dependencies = []

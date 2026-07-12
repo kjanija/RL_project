@@ -86,29 +86,24 @@ class OrderAndChaosEnv(gymnasium.Env):
         return np.all(self.board != 0)
 
     def _check_five_in_a_row(self):
-        # Horizontal
-        for r in range(6):
-            for c in range(2):  # only need to check starting from columns 0-1
-                if self.board[r, c] != 0 and np.all(self.board[r, c:c+5] == self.board[r, c]):
-                    return True
+        # Optimized the previous implementation with the help of LLMs
 
-        # Vertical
-        for c in range(6):
-            for r in range(2):  # only need to check starting from rows 0-1
-                if self.board[r, c] != 0 and np.all(self.board[r:r+5, c] == self.board[r, c]):
-                    return True
+        # assumption: 6x6 board, indices in mask don't scale with board size
+        for sym in (1, 2):
+            mask = (self.board == sym)
 
-        # Diagonal (top-left to bottom-right)
-        for r in range(2):
-            for c in range(2):
-                if self.board[r, c] != 0 and np.all([self.board[r+i, c+i] == self.board[r, c] for i in range(5)]):
-                    return True
-
-        # Anti-diagonal
-        for r in range(2):
-            for c in range(4, 6):
-                if self.board[r, c] != 0 and np.all([self.board[r+i, c-i] == self.board[r, c] for i in range(5)]):
-                    return True
+            #horizontal
+            if (mask[:, :-4] & mask[:, 1:-3] & mask[:, 2:-2] & mask[:, 3:-1] & mask[:, 4:]).any():
+                return True
+            # vertical
+            if (mask[:-4, :] & mask[1:-3, :] & mask[2:-2, :] & mask[3:-1, :] & mask[4:, :]).any():
+                return True
+            # diagonal \
+            if (mask[:-4, :-4] & mask[1:-3, 1:-3] & mask[2:-2, 2:-2] & mask[3:-1, 3:-1] & mask[4:, 4:]).any():
+                return True
+            # diagonal /
+            if(mask[:-4, 4:] & mask[1:-3, 3:-1] & mask[2:-2, 2:-2] & mask[3:-1, 1:-3] & mask[4:, :-4]).any():
+                return True
         
         return False
 
@@ -123,5 +118,5 @@ class OrderAndChaosEnv(gymnasium.Env):
         empty_cells = np.argwhere(self.board == 0)
         idx = np.random.choice(len(empty_cells))
         r, c = empty_cells[idx]
-        symbol = np.random.choice([1, 2])  # Randomly choose X or
+        symbol = np.random.choice([1, 2])  # Randomly choose X or O
         return r, c, symbol

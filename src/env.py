@@ -116,4 +116,12 @@ class OrderAndChaosEnv(gymnasium.Env):
         pass
 
     def _get_chaos_move(self):
-        pass
+        """
+        Temporarily a random move, in the future it will be derived in a more advanced way
+        """
+
+        empty_cells = np.argwhere(self.board == 0)
+        idx = np.random.choice(len(empty_cells))
+        r, c = empty_cells[idx]
+        symbol = np.random.choice([1, 2])  # Randomly choose X or
+        return r, c, symbol

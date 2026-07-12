@@ -9,19 +9,19 @@ We will model the problem as a Markov Decision Problem since both players can se
 The state represents the current board configuration. Since we have 36 cells, each of which can be either *empty*, *X* or *O*, we have the following state space:
 
 $$
-S = \left\{(\text{row}, \text{col}, \text{symbol}) \;\middle|\; \text{row},\text{col}\in[0,5], \text{symbol}\in\{\emptyset, X, O\}\right\}
+S = \left\lbrace(\text{row}, \text{col}, \text{symbol}) \;\middle|\; \text{row},\text{col}\in[0,5], \text{symbol}\in\lbrace\emptyset, X, O\rbrace\right\rbrace
 $$
 
 ## Actions
 
 Since each player chooses not only the cell, but also the symbol, we define the set of actions as the product between the board coordinates and the symbol set.
 
-Let $\mathcal C= \left\{ (r, c)\in\mathbb Z^2 \;\middle|\; 0\leq r, c \leq 5 \right\}$ and $\Sigma = \left\{X,O\right\}$
+Let $\mathcal C= \left\lbrace (r, c)\in\mathbb Z^2 \;\middle|\; 0\leq r, c \leq 5 \right\rbrace$ and $\Sigma = \left\lbrace X,O\right\rbrace$
 
 Then the action state is
 
 $$
-A = \mathcal C \times \Sigma = \left\{(r, c, \sigma)\;\middle|\;(r,c)\in\mathcal C,\;\sigma\in\Sigma\right\}
+A = \mathcal C \times \Sigma = \left\lbrace(r, c, \sigma)\;\middle|\;(r,c)\in\mathcal C,\;\sigma\in\Sigma\right\rbrace
 $$
 
 that has a size of $|A| = |\mathcal C|\times|\Sigma| = 36\times 2 = 72$

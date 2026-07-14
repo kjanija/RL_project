@@ -67,3 +67,16 @@ You can also run scripts inside the virtual environment without explicitly activ
 ```bash
 uv run main.py
 ```
+
+## Environment Configuration
+
+The OrderAndChaosEnv accepts a configuration dictionary at initialization. This allows you to dynamically tune the reward shaping and penalty values during hyperparameter sweeps without ever having to modify the core environment code.
+
+**Configurable Parameters**:
+
+- `illegal_move_reward`: Penalty for attempting to play on an already occupied cell (Default: -100).
+- `win_reward`: Massive reward for successfully placing 5 symbols in a row (Default: 100).
+- `loss_reward`: Penalty assigned when the board fills up, resulting in a win for Chaos (Default: -100).
+- `reward_3_in_a_row`: Intermediate shaping reward for extending an unbroken line to 3 (Default: 1).
+- `reward_4_in_a_row`: Intermediate shaping reward for extending an unbroken line to 4 (Default: 5).
+- `teacher_reward`: Intermediate reward granted if the agent's move perfectly matches the theoretical winning strategy (Default: 2).

@@ -33,7 +33,72 @@ A problem with this action space is that is is valid only on the first round. In
 
 ### The "trick"
 
-placeholder
+To allow standard Deep Reinforcement Learning architectures (e.g., Actor-Critic in PPO or DQN) to operate effectively, two structural requirements must be met:
+1. **Fixed Output Dimension:** The output layer of the policy network must have a constant dimension $|A| = 72$ regardless of how many squares are currently occupied.
+2. **Spatial & Semantic Consistency:** Action index $a$ must consistently refer to the exact same square and symbol across all timesteps. If we were to dynamically re-index only the remaining empty squares, "action 0" would refer to a different cell on every turn, preventing neural layers from learning stable spatial representations.
+
+#### Action Bijective Mapping
+Every integer action $a \in \{0, 1, \dots, 71\}$ is deterministically mapped to and from a board move $(r, c, \sigma)$:
+
+* **Decoding ($a \to (r, c, \sigma)$)**:
+  $$
+  p = \lfloor a / 2 \rfloor \in [0, 35], \quad r = \lfloor p / 6 \rfloor, \quad c = p \pmod 6
+  $$
+  $$
+  \sigma = (a \pmod 2) + 1 \in \{1, 2\} \quad (\text{where } 1 = X, \; 2 = O)
+  $$
+
+* **Encoding ($(r, c, \sigma) \to a$)**:
+  $$
+  a = (6 \cdot r + c) \cdot 2 + (\sigma - 1)
+  $$
+
+In Python (`src/env.py`):
+```python
+position = action // 2      # 0 to 35
+row = position // 6         # 0 to 5
+col = position % 6          # 0 to 5
+symbol = (action % 2) + 1   # 1 for X, 2 for O
+```
+
+---
+
+#### Handling Depleted / Occupied Squares
+
+As the game progresses, occupied cells become illegal moves. We support two distinct paradigms:
+
+#### 1. Baseline: Environment Penalization & Episode Termination
+In standard Gym environments, if the agent outputs an action $a$ pointing to an already occupied cell $(r, c)$, the environment:
+1. Assigns a large negative penalty (`illegal_move_reward = -100`).
+2. Terminates the episode immediately (`terminated = True`).
+
+* **Limitation:** In early training, the agent wastes up to 90% of its samples crashing into occupied squares without ever reaching mid-game tactical states.
+
+#### 2. Advanced: Invalid Action Masking (`action_masks()`)
+Instead of allowing the agent to pick an illegal move and punishing it post-hoc, **Invalid Action Masking** prevents the policy network from sampling illegal actions in the first place.
+
+The environment exposes an `action_masks()` method returning a boolean array $M \in \{0, 1\}^{72}$:
+$$
+M_a = \begin{cases} 
+1 & \text{if cell } (\lfloor \lfloor a/2 \rfloor / 6 \rfloor, \lfloor a/2 \rfloor \pmod 6) \text{ is empty} \\ 
+0 & \text{if occupied} 
+\end{cases}
+$$
+
+During training (e.g., using `MaskablePPO` from `sb3-contrib`), the policy logits $\mathbf{z} \in \mathbb{R}^{72}$ are masked **before** the softmax operation:
+$$
+\tilde{z}_a = \begin{cases} z_a & \text{if } M_a = 1 \\ -\infty & \text{if } M_a = 0 \end{cases}
+$$
+$$
+\pi(a \mid s) = \frac{\exp(\tilde{z}_a)}{\sum_{a'} \exp(\tilde{z}_{a'})}
+$$
+
+Because $\exp(-\infty) = 0$, the probability of sampling any occupied cell is strictly **zero**:
+$$
+\pi(a_{\text{illegal}} \mid s) = 0
+$$
+
+This ensures **100% of training steps explore valid game transitions**, drastically accelerating convergence and stabilizing the value network.
 
 ## Project Setup with uv
 

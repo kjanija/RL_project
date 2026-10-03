@@ -135,3 +135,52 @@ def test_intermediate_reward_mixed_symbols_blocked():
     assert (
         reward == 0
     ), "Expected 0 reward. The line was broken by an opponent symbol, but the env rewarded it anyway."
+
+
+def test_teacher_reward_awarded():
+    config = {"teacher_reward": 7}
+    env = OrderAndChaosEnv(config=config)
+    env.reset()
+
+    # On an empty board, the teacher recommends (2, 2, 1) [X at (2,2)]
+    # In action encoding: position = 2*6 + 2 = 14; action = 14*2 + (1-1) = 28
+    _, reward, _, _, _ = env.step(28)
+
+    assert reward >= 7, f"Expected teacher reward of at least 7, got {reward}"
+
+
+def test_action_masks():
+    env = OrderAndChaosEnv()
+    env.reset()
+
+    mask = env.action_masks()
+    assert len(mask) == 72
+    assert np.all(mask), "All actions should be legal on an empty board."
+
+    # Play on cell (0, 0)
+    env.board[0, 0] = 1
+    mask_after = env.action_masks()
+    # Indices 0 (X at 0,0) and 1 (O at 0,0) must now be False
+    assert not mask_after[0]
+    assert not mask_after[1]
+    # Remaining 70 actions should still be True
+    assert np.sum(mask_after) == 70
+
+
+def test_chaos_completing_five_in_a_row_wins_for_order():
+    env = OrderAndChaosEnv()
+    env.reset()
+
+    # Set up 4 'X's on row 0
+    env.board[0, 0:4] = 1
+
+    # Force chaos to play the 5th 'X' at (0, 4)
+    env._get_chaos_move = lambda: (0, 4, 1)
+
+    # Order plays an unrelated move at (5, 5)
+    action_order = (5 * 6 + 5) * 2 + 0  # X at (5,5)
+    obs, reward, terminated, _, info = env.step(action_order)
+
+    assert terminated, "Episode should terminate when Chaos completes 5-in-a-row."
+    assert reward == env.win_reward, f"Expected win reward {env.win_reward}, got {reward}"
+    assert "Order wins" in info.get("result", "")

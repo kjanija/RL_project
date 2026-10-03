@@ -100,6 +100,43 @@ $$
 
 This ensures **100% of training steps explore valid game transitions**, drastically accelerating convergence and stabilizing the value network.
 
+## Rewards
+
+In the standard game of Order and Chaos, rewards are sparse: Order only receives feedback at the very end of the game ($+100$ for winning, $-100$ for losing). Because the state space contains $3^{36} \approx 1.5 \times 10^{17}$ possible configurations, random exploration is inefficient.
+
+To guide the agent, we formulate a shaped reward function $R(s, a, s')$:
+
+$$
+R(s, a, s') = \begin{cases}
+R_{\text{illegal}} & \text{if cell } (r, c) \text{ is occupied in } s \\
+R_{\text{win}} & \text{if a 5-in-a-row is formed in } s' \\
+R_{\text{loss}} & \text{if the board is full with no 5-in-a-row} \\
+R_{\text{step}} + R_{\text{line}}(s, a) + R_{\text{teacher}}(s, a) & \text{otherwise}
+\end{cases}
+$$
+
+### Reward Components
+
+1. **Terminal Win Reward ($R_{\text{win}} = +100$)**:
+   Awarded when an unbroken line of 5 identical symbols ($X$ or $O$) is created anywhere on the board. In accordance with game rules, this is awarded even if Chaos places the 5th symbol.
+
+2. **Terminal Loss Penalty ($R_{\text{loss}} = -100$)**:
+   Assigned when all 36 squares are filled without any 5-in-a-row, resulting in a win for Chaos.
+
+3. **Illegal Move Penalty ($R_{\text{illegal}} = -100$)**:
+   Assigned if the agent plays on an occupied square, immediately terminating the episode. (Can be bypassed using `action_masks()`).
+
+4. **Line-Extension Shaping ($R_{\text{line}}$)**:
+   Rewards building tactical threats by extending unbroken lines of the chosen symbol:
+   * **4-in-a-row ($R_{\text{reward\_4\_in\_a\_row}} = +5$)**: Critical threat; forces Chaos to defend or yields immediate victory next turn.
+   * **3-in-a-row ($R_{\text{reward\_3\_in\_a\_row}} = +1$)**: Intermediate building block.
+
+5. **Teacher Guidance Reward ($R_{\text{teacher}} = +2$)**:
+   Bonus awarded if Order's chosen move $(r, c, \sigma)$ matches the move recommended by the theoretical winning strategy (border mirror or inner 4x4 heuristic). This provides curriculum guidance early in training.
+
+6. **Step Cost ($R_{\text{step}} = 0$)**:
+   Optional small step penalty to encourage the agent to win in fewer turns.
+
 ## Project Setup with uv
 
 This project uses `uv` for fast Python environment and package management.

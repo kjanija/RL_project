@@ -249,12 +249,56 @@ class OrderAndChaosEnv(gymnasium.Env):
 
     def _get_chaos_move(self):
         """
-        Temporarily a random move, in the future it will be derived in a more advanced way
+        generates Chaos' move based on conf "chaos_mode"
+            - 'random': uniform random move across empty cells
+            - 'heuristic': defensive blocker prioritizing 4-in-a-row blocks and fork
         """
 
-        empty_cells = np.argwhere(self.board == 0)
-        idx = np.random.choice(len(empty_cells))
-        r, c = empty_cells[idx]
-        symbol = np.random.choice([1, 2])  # Randomly choose X or O
-        return r, c, symbol
+        mode = self.config.get("chaos_mode", "random")
+        if mode == "heuristic":
+            return self._get_heuristic_chaos_move()
 
+        empty_cells = np.argwhere(self.board == 0)
+        idx = self.np_random.integers(0, len(empty_cells))
+        r, c = empty_cells[idx]
+        symbol = self.np_random.integers(1, 3)
+        return int(r), int(c), int(symbol)
+
+    def _get_heuristic_chaos_move(self):
+        """
+        Defensive chaos opponent:
+        - blocks immediate order 4-in-a-row wins
+        - spoils 3-in-a-row open lines
+        - random fallback
+        """
+        from src.strategy import ALL_6X6_LINES
+
+        # 1.
+        for line in ALL_6X6_LINES:
+            vals = [self.board[r, c] for r, c in line]
+            for sym in (1, 2):
+                if vals.count(sym) == 4 and vals.count(0) == 1:
+                    empty_idx = vals.index(0)
+                    r, c = line[empty_idx]
+                    return int(r), int(c), int(3 - sym)
+
+        # 2.
+        threat_candidates = []
+        for line in ALL_6X6_LINES:
+            vals = [self.board[r, c] for r, c in line]
+            for sym in (1, 2):
+                if vals.count(sym) == 3 and vals.count(0) == 2:
+                    for idx, (r, c) in enumerate(line):
+                        if vals[idx] == 0:
+                            threat_candidates.append((int(r), int(c), int(3 - sym)))
+
+        if threat_candidates:
+            ifx = self.np_random.integers(0, len(threat_candidates))
+            return threat_candidates[idx]
+
+        # 3.
+        empty_cells = np.argwhere(self.board == 0)
+        idx = self.np_random.integers(0, len(empty_cells))
+        r, c = empty_cells[idx]
+        symbol = self.np_random.integers(1, 3)
+        return int(r), int(c), int(symbol)

@@ -293,7 +293,7 @@ class OrderAndChaosEnv(gymnasium.Env):
                             threat_candidates.append((int(r), int(c), int(3 - sym)))
 
         if threat_candidates:
-            ifx = self.np_random.integers(0, len(threat_candidates))
+            idx = self.np_random.integers(0, len(threat_candidates))
             return threat_candidates[idx]
 
         # 3.

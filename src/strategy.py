@@ -11,8 +11,6 @@ Expected Implementation:
 - These functions will be used by the environment to generate opponent moves or to compute "teacher" rewards.
 """
 
-from symtable import Symbol
-
 import numpy as np
 
 # 10 border pairs from Lemma 4.4, Figure 5
@@ -148,7 +146,7 @@ def check_figure_4_exception(inner_board):
             transformed_b = np.zeros((4, 4), dtype=int)
             for r in range(4):
                 for c in range(4):
-                    if base_b(r, c) != 0:
+                    if base_b[r, c] != 0:
                         tr, tc = tf(r, c)
                         transformed_b[tr, tc] = base_b[r, c]
 
@@ -181,7 +179,7 @@ def get_all_6x6_win_lines():
     for r in range(2):
         for c in range(2):
             lines.append([(r + i, c + i) for i in range(5)])
-    for r in range(6):
+    for r in range(2):
         for c in range(4, 6):
             lines.append([(r + i, c - i) for i in range(5)])
     return lines
@@ -221,7 +219,7 @@ def _find_inner_4_in_a_row_completion(board):
             border2 = (r2 + dr, c2 + dc)
             if board[border1] == 0:
                 return (border1[0], border1[1], sym)
-            if board[border1] == 0:
+            if board[border2] == 0:
                 return (border2[0], border2[1], sym)
     return None
 
@@ -262,39 +260,6 @@ def get_order_winning_move(board):
         return (int(empty[0][0]), int(empty[0][1]), 1)
 
     return (0, 0, 1)
-
-
-def _find_extension_move(board):
-    """
-    finds a 4-in-a-row in the inner board and completes it
-    """
-    inner_board = board[1:5, 1:5]
-    for coords, vals in _get_4x4_lines(inner_board):
-        if np.all(vals == 1) or np.all(vals == 2):
-            symbol = vals[0]
-
-            # map start and end coords to outer board
-            r1, c1 = coords[0][0] + 1, coords[0][1] + 1
-            r2, c2 = coords[3][0] + 1, coords[3][1] + 1
-
-            # direction
-            dr = np.sign(r2 - r1)
-            dc = np.sign(c2 - c1)
-
-            # border squares extending this line are:
-            border1 = (r1 - dr, c1 - dc)
-            border2 = (r2 + dr, c2 + dc)
-
-            # play in which one is empty
-            if board[border1] == 0:
-                return (border1[0], border1[1], symbol)
-            elif board[border2] == 0:
-                return (border2[0], border2[1], symbol)
-
-    # fallback (technically never reached)
-    print("Warning: no 4-in-a-row found in inner board, but inner board is full")
-    empty_spots = np.argwhere(board == 0)
-    return (empty_spots[0][0], empty_spots[0][1], 1)
 
 
 def _inner_stretegy(inner_board):
@@ -416,32 +381,6 @@ def _inner_stretegy(inner_board):
     return (r, c, 1)
 
 
-def _find_completion_move(inner_board, target_weight):
-    """
-    scan inner board for unbroken line of length `target_weight`
-
-    returns (row, col, sym) to complete it
-    """
-
-    for coords, vals in _get_4x4_lines(inner_board):
-        has_X = 1 in vals
-        has_O = 2 in vals
-
-        if has_X and has_O:
-            continue
-
-        weight = np.sum(vals != 0)
-        if weight == target_weight:
-            symbol = 1 if not (has_X or has_O) else (1 if has_X else 2)
-
-            empty_idx = np.argwhere(vals == 0)[0][0]
-            r, c = coords[empty_idx]
-
-            return (r, c, symbol)
-
-    return None
-
-
 def _get_4x4_lines(inner_board):
     """
     Helper that returns 10 lines of length 4 of th einner board
@@ -466,5 +405,4 @@ def _get_4x4_lines(inner_board):
             np.array([inner_board[i, 3 - i] for i in range(4)]),
         )
     )
-    return line
-
+    return lines

@@ -11,7 +11,220 @@ Expected Implementation:
 - These functions will be used by the environment to generate opponent moves or to compute "teacher" rewards.
 """
 
+from symtable import Symbol
+
 import numpy as np
+
+# 10 border pairs from Lemma 4.4, Figure 5
+# each pair connects two opposing endpoints of the lines of length 6 passing through B1
+BORDER_PAIRS = {
+    # 4 row pairs (r,0)<->(r,5) for r in [1,4]
+    (1, 0): (1, 5),
+    (1, 5): (1, 0),
+    (2, 0): (2, 5),
+    (2, 5): (2, 0),
+    (3, 0): (3, 5),
+    (3, 5): (3, 0),
+    (4, 0): (4, 5),
+    (4, 5): (4, 0),
+    # 4 col pairs (0,c)<->(5,c) for c in [1,4]
+    (0, 1): (5, 1),
+    (5, 1): (0, 1),
+    (0, 2): (5, 2),
+    (5, 2): (0, 2),
+    (0, 3): (5, 3),
+    (5, 3): (0, 3),
+    (0, 4): (5, 4),
+    (5, 4): (0, 4),
+    # 2 diagonal pairs
+    (0, 0): (5, 5),
+    (5, 5): (0, 0),
+    (0, 5): (5, 0),
+    (5, 0): (0, 5),
+}
+
+# 6 canonical exception boards from Figura 4
+# they are represented as 4x4 arrays 0=empty, 1=X, 2=O with target move (r,c,sym)
+FIG4_EXCEPTIONS = []
+
+
+def _init_exceptions():
+    # top-left board from Figure 4:
+    b1 = np.zeros((4, 4), dtype=int)
+    b1[0, 0] = 2
+    b1[1, 0] = 1
+    b1[1, 1] = 1
+    b1[1, 2] = 2
+    b1[1, 3] = 1
+    b1[2, 0] = 2
+    b1[2, 2] = 1
+    b1[3, 0] = 2
+    FIG4_EXCEPTIONS.append((b1, 0, 3, 2))  # i.e. play O at (0,3)
+
+    # top-right board from figure 4:
+    b2 = np.zeros((4, 4), dtype=int)
+    b2[0, 1] = 2
+    b2[1, 0] = 1
+    b2[1, 1] = 1
+    b2[1, 2] = 1
+    b2[1, 3] = 2
+    b2[3, 3] = 2
+    FIG4_EXCEPTIONS.append((b2, 3, 1, 2))  # i.e. play O at (3,1)
+
+    # middle-left board of Figure 4:
+    b3 = np.zeros((4, 4), dtype=int)
+    b3[1, 0] = 2
+    b3[1, 1] = 1
+    b3[1, 2] = 1
+    b3[2, 0] = 2
+    FIG4_EXCEPTIONS.append((b3, 0, 3, 1))  # Play X at (0,3)
+
+    # middle-right of Figure 4:
+    b4 = np.zeros((4, 4), dtype=int)
+    b4[0, 0] = 2
+    b4[0, 1] = 2
+    b4[1, 0] = 1
+    b4[1, 1] = 1
+    FIG4_EXCEPTIONS.append((b4, 0, 3, 2))  # Play O at (0,3)
+
+    # bottom-left of Figure 4:
+    b5 = np.zeros((4, 4), dtype=int)
+    b5[0, 0] = 1
+    b5[0, 2] = 2
+    b5[1, 0] = 2
+    b5[1, 1] = 1
+    b5[2, 0] = 2
+    b5[3, 0] = 2
+    FIG4_EXCEPTIONS.append((b5, 3, 3, 1))  # Play X at (3,3)
+
+    # bottom-right of Figure 4:
+    b6 = np.zeros((4, 4), dtype=int)
+    b6[1, 0] = 2
+    b6[1, 1] = 1
+    b6[2, 0] = 2
+    b6[3, 0] = 1
+    b6[3, 1] = 1
+    b6[3, 3] = 2
+    FIG4_EXCEPTIONS.append((b6, 3, 2, 2))  # Play O at (3,2)
+
+
+_init_exceptions()
+
+
+def _d4_transforms():
+    """
+    Returns 8 coordinate mapping functions for D4 symmetry on 4x4 grid
+    """
+    transforms = []
+    for rot in range(4):
+        for reflect in [False, True]:
+
+            def make_tf(k, ref):
+                def tf(r, c):
+                    curr_r, curr_c = r, c
+                    for _ in range(k):
+                        curr_r, curr_c = curr_c, 3 - curr_r
+                    if ref:
+                        curr_c = 3 - curr_c
+                    return curr_r, curr_c
+
+                return tf
+
+            transforms.append(make_tf(rot, reflect))
+    return transforms
+
+
+TRANSFORMS = _d4_transforms()
+
+
+def check_figure_4_exception(inner_board):
+    """
+    Checks if inner_board matches any Figure 4 exception (under d4 symmetry or swap of symbol X/O)
+    Returns (r,c,sym) in 4x4 inner coordinates, or None
+    """
+
+    for base_b, target_r, target_c, target_sym in FIG4_EXCEPTIONS:
+        for tf in TRANSFORMS:
+            transformed_b = np.zeros((4, 4), dtype=int)
+            for r in range(4):
+                for c in range(4):
+                    if base_b(r, c) != 0:
+                        tr, tc = tf(r, c)
+                        transformed_b[tr, tc] = base_b[r, c]
+
+            # direct match
+            if np.array_equal(inner_board, transformed_b):
+                tr, tc = tf(target_r, target_c)
+                return tr, tc, target_sym
+
+            # inverted symbols match
+            inv_transformed = np.zeros_like(transformed_b)
+            inv_transformed[transformed_b == 1] = 2
+            inv_transformed[transformed_b == 2] = 1
+            if np.array_equal(inner_board, inv_transformed):
+                tr, tc = tf(target_r, target_c)
+                return tr, tc, 3 - target_sym
+    return None
+
+
+def get_all_6x6_win_lines():
+    """
+    Returns all 28 winning lines of length 5 on the 6x6 board
+    """
+    lines = []
+    for r in range(6):
+        for c in range(2):
+            lines.append([(r, c + i) for i in range(5)])
+    for c in range(6):
+        for r in range(2):
+            lines.append([(r + i, c) for i in range(5)])
+    for r in range(2):
+        for c in range(2):
+            lines.append([(r + i, c + i) for i in range(5)])
+    for r in range(6):
+        for c in range(4, 6):
+            lines.append([(r + i, c - i) for i in range(5)])
+    return lines
+
+
+ALL_6X6_LINES = get_all_6x6_win_lines()
+
+
+def find_immediate_5_in_a_row_win(board):
+    """
+    Returns (r,c,sym) if order can complete a 5-in-a-row anywhere on the 6x6 board
+    """
+    for line in ALL_6X6_LINES:
+        vals = [board[r, c] for r, c in line]
+        for sym in (1, 2):
+            if vals.count(sym) == 4 and vals.count(0) == 1:
+                empty_idx = vals.index(0)
+                r, c = line[empty_idx]
+                return r, c, sym
+    return None
+
+
+def _find_inner_4_in_a_row_completion(board):
+    """
+    Checks if a 4-in-a-row exists inside B1
+    If so, extends it into the empty border square across its line
+    """
+    inner_board = board[1:5, 1:5]
+    for coords, vals in _get_4x4_lines(inner_board):
+        if (np.all(vals == 1) or np.all(vals == 2)) and vals[0] != 0:
+            sym = vals[0]
+            r1, c1 = coords[0][0] + 1, coords[0][1] + 1
+            r2, c2 = coords[3][0] + 1, coords[3][1] + 1
+            dr = np.sign(r2 - r1)
+            dc = np.sign(c2 - c1)
+            border1 = (r1 - dr, c1 - dc)
+            border2 = (r2 + dr, c2 + dc)
+            if board[border1] == 0:
+                return (border1[0], border1[1], sym)
+            if board[border1] == 0:
+                return (border2[0], border2[1], sym)
+    return None
+
 
 def get_order_winning_move(board):
     """
@@ -21,34 +234,35 @@ def get_order_winning_move(board):
     board: 6x6 np array (0:empty, 1:X, 2:O)
     """
 
-    #1. Border Mirror Response
-    # If chaos plays in outer border, order must play opposite symbol in the
-    # opposite position, where opposite of (r, c) is (5-r,5-c)
-    border_indices = [
-        (r, c) for r in range(6) for c in range(6)
-        if r==0 or r==5 or c==0 or c==5
-    ]
+    # 0. immediate 5-in-a-row
+    win_move = find_immediate_5_in_a_row_win(board)
+    if win_move is not None:
+        return win_move
 
-    for r, c in border_indices:
-        if board[r, c] != 0:
-            opp_r, opp_c = 5-r, 5-c
-            if board[opp_r, opp_c] == 0:
-                # chaos played here, mirror cell empty
-                # mirror by playing opposite sym
-                opp_sym = 3 - board[r, c] # 1-->2, 2-->1
-                return (opp_r, opp_c, opp_sym)
+    # 1. 4-in-a-row extension from inner board
+    ext_move = _find_inner_4_in_a_row_completion(board)
+    if ext_move is not None:
+        return ext_move
 
-    # 2. Center
+    # 2. Border Mirror Response (lemma 4.4 and figure 5)
+    for u, v in BORDER_PAIRS.items():
+        if board[u] != 0 and board[v] == 0:
+            opp_sym = 3 - board[u]
+            return (v[0], v[1], opp_sym)
+
+    # 3. Center 4x4 (strategy 4.2)
     inner_board = board[1:5, 1:5]
+    if np.any(inner_board == 0):
+        ir, ic, sym = _inner_stretegy(inner_board)
+        return (ir + 1, ic + 1, sym)
 
-    if np.all(inner_board != 0):
-        # If the inner board is full, Rule 3: order is guaranteed to have a
-        # 4-in-a-row inside, just extend it to the border.
-        return _find_extension_move(board)
+    # fallback first available cell
+    empty = np.argwhere(board == 0)
+    if len(empty) > 0:
+        return (int(empty[0][0]), int(empty[0][1]), 1)
 
-    # Rule 2: map inner coords to outer coords
-    inner_r, inner_c, symbol = _inner_stretegy(inner_board)
-    return (inner_r + 1, inner_c + 1, symbol)
+    return (0, 0, 1)
+
 
 def _find_extension_move(board):
     """
@@ -76,104 +290,131 @@ def _find_extension_move(board):
                 return (border1[0], border1[1], symbol)
             elif board[border2] == 0:
                 return (border2[0], border2[1], symbol)
-    
+
     # fallback (technically never reached)
     print("Warning: no 4-in-a-row found in inner board, but inner board is full")
     empty_spots = np.argwhere(board == 0)
     return (empty_spots[0][0], empty_spots[0][1], 1)
 
+
 def _inner_stretegy(inner_board):
     """
-    Implements the 6 heuristics for playing in the 4x4 center
+    Implements the 6 heuristics strategy from 4.2 for playing in the 4x4 center
     Returns (row, col, symbol) in inner board coordinates
     """
-    # Rule 1
-    if np.all(inner_board == 0):
-        return (1, 1, 1) # play X at (1,1) of inner, which is (2,2) of whole board
+    # Rule 1: exeptions from figure 4
+    exc = check_figure_4_exception(inner_board)
+    if exc is not None:
+        return exc
 
-    # Rule 2
-    move = _find_completion_move(inner_board, target_weight=3)
-    if move is not None:
-        return move
+    # Rule 2: first move
+    if np.all(inner_board == 0):
+        return (1, 1, 1)  # play X at (1,1), which is (2,2) on 6x6
 
     lines = _get_4x4_lines(inner_board)
-    empty_spots = np.argwhere(inner_board == 0)
+    empty_spots = [(r, c) for r in range(4) for c in range(4) if inner_board[r, c] == 0]
 
-    # Rule 3
-    # line intersections: find empty square that intersects TWO unbroken lines
-    # of weight 2 with SAME symbol
-    for r, c in empty_spots:
-        lines_x = 0
-        lines_o = 0
-        for coords, vals in lines:
-            if (r,c) in coords:
-                has_X = (1 in vals)
-                has_O = (2 in vals)
-
-                # line of X weight 2
-                if has_X and not has_O and np.sum(vals == 1) == 2:
-                    lines_x += 1
-
-                # line of O weight 2
-                elif has_O and not has_X and np.sum(vals == 2) == 2:
-                    lines_o += 1
-
-        if lines_x >= 2: return (r, c, 1)
-        if lines_o >= 2: return (r, c, 2)
-
-    # Rule 4
-    # 1. find global max_weight `w_star` among all unbroken lines
-    w_star = 0
-    unbroken_lines = []
+    # Rule 3: immediate win in 4x4 (i.e. unbroken line of weigth 3)
+    candidate_wins = []
     for coords, vals in lines:
-        has_X = (1 in vals)
-        has_O = (2 in vals)
+        for sym in (1, 2):
+            if np.sum(vals == sym) == 3 and np.sum(vals == 0) == 1:
+                idx = np.where(vals == 0)[0][0]
+                candidate_wins.append((coords[idx][0], coords[idx][1], sym))
+    if candidate_wins:
+        candidate_wins.sort(key=lambda m: (m[0], m[1]))
+        return candidate_wins[0]
+
+    # Rule 4: fork/double threat
+    candidate_forks = []
+    for r, c in empty_spots:
+        for sym in (1, 2):
+            count = 0
+            for coords, vals in lines:
+                if (r, c) in coords:
+                    opp = 3 - sym
+                    if np.all(vals != opp) and np.sum(vals == sym) == 2:
+                        count += 1
+            if count >= 2:
+                candidate_forks.append((r, c, sym))
+    if candidate_forks:
+        candidate_forks.sort(key=lambda m: (m[0], m[1]))
+        return candidate_forks[0]
+
+    # Rule 5: safe extensions
+    safe_moves_by_line_weight = []
+    for r, c in empty_spots:
+        for sym in (1, 2):
+            opp = 3 - sym
+            breaks_any = False
+            for coords, vals in lines:
+                if (r, c) in coords:
+                    if np.all(vals != sym) and np.any(vals == opp):
+                        breaks_any = True
+                        break
+            if not breaks_any:
+                max_w = 0
+                for coords, vals in lines:
+                    if (r, c) in coords and np.all(vals != opp):
+                        w = np.sum(vals == sym)
+                        if w > max_w:
+                            max_w = w
+                safe_moves_by_line_weight.append((max_w, r, c, sym))
+    if safe_moves_by_line_weight:
+        safe_moves_by_line_weight.sort(key=lambda m: (-m[0], m[1], m[2]))
+        best_w = safe_moves_by_line_weight[0][0]
+        best_candidates = [m for m in safe_moves_by_line_weight if m[0] == best_w]
+        best_candidates.sort(key=lambda m: (m[1], m[2]))
+        _, r, c, sym = best_candidates[0]
+        return (r, c, sym)
+
+    # Rule 6: maximal weight extension
+    w_star = 0
+    unbroken_lies = []
+
+    for coords, vals in lines:
+        has_X = np.any(vals == 1)
+        has_O = np.any(vals == 2)
         if not (has_X and has_O):
-            weight = np.sum(vals != 0)
-            unbroken_lines.append((coords, vals, has_X, has_O, weight))
-            if weight > w_star:
-                w_star = weight
+            w = np.sum(vals != 0)
+            unbroken_lies.append((coords, vals, has_X, has_O, w))
+            if w > w_star:
+                w_star = w
 
-    # 2. score empty spots for both symbols
-    best_move = None
     best_score = -1
+    best_candidates_vi = []
+    for r, c in empty_spots:
+        for sym in (1, 2):
+            opp = 3 - sym
+            breaks_w_star = False
+            for coords, vals, has_X, has_O, w in unbroken_lies:
+                if (r, c) in coords and w == w_star:
+                    if (opp == 1 and has_X) or (opp == 2 and has_O):
+                        breaks_w_star = True
+                        break
+            if breaks_w_star:
+                continue
 
-    for r,c in empty_spots:
-        for sym in (1,2):
-            breaks_max_opponent_line = False
-
-            for coords, vals, has_X, has_O, weight in unbroken_lines:
-                if (r,c) in coords:
-                    opp_sym = 3-sym # if we play 1, opponent is 2
-
-                    # if this is the opponent's line and has max weight, cannot
-                    # break it
-                    if (opp_sym == 1 and has_X) or (opp_sym == 2 and has_O):
-                        if weight == w_star:
-                            breaks_max_opponent_line = True
-                            break
-            if breaks_max_opponent_line:
-                continue # skip playing sym at (r, c)
-
-            # otherwise, calc max weight of OUR lines passing thorugh (r,c)
-            max_resulting_weight = 0
-            for coords, vals, has_X, has_O, weight in unbroken_lines:
-                if (r,c) in coords:
-                    # if its our line or a completely empty one
+            max_resulting_w = 0
+            for coords, vals, has_X, has_O, w in unbroken_lies:
+                if (r, c) in coords:
                     if (sym == 1 and not has_O) or (sym == 2 and not has_X):
-                        if weight + 1 > max_resulting_weight:
-                            max_resulting_weight = weight + 1
+                        if w + 1 > max_resulting_w:
+                            max_resulting_w = w + 1
+            if max_resulting_w > best_score:
+                best_score = max_resulting_w
+                best_candidates_vi = [(r, c, sym)]
+            elif max_resulting_w == best_score:
+                best_candidates_vi.append((r, c, sym))
 
-            if max_resulting_weight > best_score:
-                best_score = max_resulting_weight
-                best_move = (r, c, sym)
+    if best_candidates_vi:
+        best_candidates_vi.sort(key=lambda m: (m[0], m[1]))
+        return best_candidates_vi[0]
 
-    if best_move is not None:
-        return best_move
-
-    # Fallback: first available empty space, technically never reached
+    # fallback to empty spot
     r, c = empty_spots[0]
     return (r, c, 1)
+
 
 def _find_completion_move(inner_board, target_weight):
     """
@@ -181,10 +422,10 @@ def _find_completion_move(inner_board, target_weight):
 
     returns (row, col, sym) to complete it
     """
-    
+
     for coords, vals in _get_4x4_lines(inner_board):
-        has_X = (1 in vals)
-        has_O = (2 in vals)
+        has_X = 1 in vals
+        has_O = 2 in vals
 
         if has_X and has_O:
             continue
@@ -199,6 +440,7 @@ def _find_completion_move(inner_board, target_weight):
             return (r, c, symbol)
 
     return None
+
 
 def _get_4x4_lines(inner_board):
     """
@@ -215,7 +457,14 @@ def _get_4x4_lines(inner_board):
     for c in range(4):
         lines.append(([(r, c) for r in range(4)], inner_board[:, c]))
     # diagonals
-    lines.append(([(i, i) for i in range(4)], np.diag(inner_board)))
-    lines.append(([(i, 3-i) for i in range(4)], np.diag(np.fliplr(inner_board))))
+    lines.append(
+        ([(i, i) for i in range(4)], np.array([inner_board[i, i] for i in range(4)]))
+    )
+    lines.append(
+        (
+            [(i, 3 - i) for i in range(4)],
+            np.array([inner_board[i, 3 - i] for i in range(4)]),
+        )
+    )
+    return line
 
-    return lines

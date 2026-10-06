@@ -35,6 +35,7 @@ class OrderAndChaosEnv(gymnasium.Env):
         self.reward_3_in_a_row = config.get("reward_3_in_a_row", 1)
         self.reward_4_in_a_row = config.get("reward_4_in_a_row", 5)
         self.teacher_reward = config.get("teacher_reward", 2)
+        self.chaos_defense_prob = float(config.get("chaos_defense_prob", 1.0))
 
         # 6x6 board with either X or O (36*2)
         self.action_space = gymnasium.spaces.Discrete(72)
@@ -260,11 +261,14 @@ class OrderAndChaosEnv(gymnasium.Env):
         """
         generates Chaos' move based on conf "chaos_mode"
             - 'random': uniform random move across empty cells, avoiding completing 5-in-a-row
-            - 'heuristic': defensive blocker prioritizing 4-in-a-row blocks and forks
+            - 'heuristic': defensive blocker prioritizing 4-in-a-row blocks and forks,
+                           blended with random moves based on chaos_defense_prob
         """
         mode = self.config.get("chaos_mode", "random")
         if mode == "heuristic":
-            return self._get_heuristic_chaos_move()
+            if self.np_random.random() < self.chaos_defense_prob:
+                return self._get_heuristic_chaos_move()
+            return self._get_random_chaos_move()
 
         return self._get_random_chaos_move()
 

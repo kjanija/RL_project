@@ -59,6 +59,7 @@ def evaluate(
 def train_dqn(args):
     env_config = {
         "chaos_mode": args.chaos_mode,
+        "chaos_defense_prob": args.chaos_defense_prob,
         "win_reward": 100.0,
         "loss_reward": -100.0,
         "illegal_move_reward": -100.0,
@@ -85,13 +86,14 @@ def train_dqn(args):
             param_group["lr"] = args.lr
         print(f"Resumed training from checkpoint: {args.resume_checkpoint} (LR set to {args.lr})")
 
+    model_tag = args.model_tag if args.model_tag else args.chaos_mode
     save_dir = Path("models")
     save_dir.mkdir(parents=True, exist_ok=True)
-    best_model_path = save_dir / f"order_dqn_{args.chaos_mode}_best.pt"
+    best_model_path = save_dir / f"order_dqn_{model_tag}_best.pt"
 
     # Setup CSV and JSON metrics tracking
-    metrics_csv_path = save_dir / f"order_dqn_{args.chaos_mode}_metrics.csv"
-    history_json_path = save_dir / f"order_dqn_{args.chaos_mode}_history.json"
+    metrics_csv_path = save_dir / f"order_dqn_{model_tag}_metrics.csv"
+    history_json_path = save_dir / f"order_dqn_{model_tag}_history.json"
 
     with open(metrics_csv_path, "w") as f:
         f.write("episode,epsilon,eval_win_rate,eval_mean_moves,eval_mean_reward,msbe_loss\n")
@@ -101,7 +103,7 @@ def train_dqn(args):
     best_win_rate = -1.0
 
     print(
-        f"--- Starting DQN training (Chaos mode: {args.chaos_mode}, Episodes: {args.episodes}) ---"
+        f"--- Starting DQN training (Chaos: {args.chaos_mode}, Defense Prob: {args.chaos_defense_prob:.2f}, Tag: {model_tag}, Episodes: {args.episodes}) ---"
     )
 
     for episode in range(1, args.episodes + 1):
@@ -169,14 +171,16 @@ def train_dqn(args):
                     f"  ==> Saved new best model to {best_model_path} (Win Rate: {best_win_rate * 100:.1f}%)"
                 )
 
-    final_model_path = save_dir / f"order_dqn_{args.chaos_mode}_final.pt"
+    final_model_path = save_dir / f"order_dqn_{model_tag}_final.pt"
     agent.save(str(final_model_path))
     print(f"Training complete. Final model saved to {final_model_path}")
     print(f"Metrics saved to {metrics_csv_path} and {history_json_path}")
 
 if __name__ == "__main__":                                                              
     parser = argparse.ArgumentParser(description="Train Order's policy using DQN with Action Masking")                                                                          
-    parser.add_argument("--chaos_mode", type=str, default="random", choices=["random", "heuristic"], help="Opponent mode")                                                       
+    parser.add_argument("--chaos_mode", type=str, default="random", choices=["random", "heuristic"], help="Opponent mode")
+    parser.add_argument("--chaos_defense_prob", type=float, default=1.0, help="Probability of playing heuristic defensive moves (vs random fallback)")
+    parser.add_argument("--model_tag", type=str, default=None, help="Optional custom identifier for saved model/metrics filenames")                                                       
     parser.add_argument("--episodes", type=int, default=2000, help="Total training episodes")                                                                                
     parser.add_argument("--batch_size", type=int, default=64, help="Mini-batch size for MSBE projection")                                                                         
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate for Adam")

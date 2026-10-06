@@ -184,3 +184,17 @@ def test_chaos_completing_five_in_a_row_wins_for_order():
     assert terminated, "Episode should terminate when Chaos completes 5-in-a-row."
     assert reward == env.win_reward, f"Expected win reward {env.win_reward}, got {reward}"
     assert "Order wins" in info.get("result", "")
+
+
+def test_random_chaos_avoids_completing_five_in_a_row():
+    env = OrderAndChaosEnv(config={"chaos_mode": "random"})
+    env.reset()
+    # Place 4 Xs in row 0: (0,0) through (0,3)
+    env.board[0, 0:4] = 1
+
+    # Over 25 repeated samples from this state, Random Chaos must NEVER play X at (0,4)
+    for _ in range(25):
+        r, c, sym = env._get_chaos_move()
+        if r == 0 and c == 4:
+            assert sym != 1, "Random Chaos played the completing symbol (X) at (0,4)!"
+

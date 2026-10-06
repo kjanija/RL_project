@@ -5,6 +5,7 @@ Curriculum training script for Order's DQN policy
 """
 
 import argparse
+import json
 from pathlib import Path
 import sys
 
@@ -21,7 +22,7 @@ def evaluate(
     agent: MaskedDQNAgent, env: OrderAndChaosEnv, num_episodes: int = 50
 ) -> dict:
     """
-    Ealuates agent greedily (eps=0) over num_episodes
+    Evaluates agent greedily (eps=0) over num_episodes
     """
     wins = 0
     total_rewards = []
@@ -80,12 +81,22 @@ def train_dqn(args):
 
     if args.resume_checkpoint and Path(args.resume_checkpoint).exists():
         agent.load(args.resume_checkpoint)
-        print(f"Resumed training from checkpoint: {args.resume_checkpoint}")
+        for param_group in agent.optimizer.param_groups:
+            param_group["lr"] = args.lr
+        print(f"Resumed training from checkpoint: {args.resume_checkpoint} (LR set to {args.lr})")
 
     save_dir = Path("models")
     save_dir.mkdir(parents=True, exist_ok=True)
     best_model_path = save_dir / f"order_dqn_{args.chaos_mode}_best.pt"
 
+    # Setup CSV and JSON metrics tracking
+    metrics_csv_path = save_dir / f"order_dqn_{args.chaos_mode}_metrics.csv"
+    history_json_path = save_dir / f"order_dqn_{args.chaos_mode}_history.json"
+
+    with open(metrics_csv_path, "w") as f:
+        f.write("episode,epsilon,eval_win_rate,eval_mean_moves,eval_mean_reward,msbe_loss\n")
+
+    history = []
     epsilon = args.epsilon_start
     best_win_rate = -1.0
 
@@ -122,14 +133,34 @@ def train_dqn(args):
 
         if episode % args.eval_interval == 0:
             eval_metrics = evaluate(agent, env, num_episodes=args.eval_episodes)
-            mean_loss = np.mean(ep_loss) if ep_loss else 0.0
-            print(                                                                      
-                    f"Episode {episode:5d} | Epsilon: {epsilon:.3f} | "                     
-                    f"Eval Win Rate: {eval_metrics['win_rate'] * 100:5.1f}% | "             
-                    f"Eval Avg Moves: {eval_metrics['mean_moves']:4.1f} | "                 
-                    f"Eval Avg Reward: {eval_metrics['mean_reward']:6.1f} | "               
-                    f"MSBE Loss: {mean_loss:.4f}"                                           
+            mean_loss = float(np.mean(ep_loss)) if ep_loss else 0.0
+
+            log_entry = {
+                "episode": episode,
+                "epsilon": float(epsilon),
+                "eval_win_rate": float(eval_metrics["win_rate"]),
+                "eval_mean_moves": float(eval_metrics["mean_moves"]),
+                "eval_mean_reward": float(eval_metrics["mean_reward"]),
+                "msbe_loss": mean_loss,
+            }
+            history.append(log_entry)
+
+            with open(metrics_csv_path, "a") as f:
+                f.write(
+                    f"{episode},{epsilon:.4f},{eval_metrics['win_rate']:.4f},"
+                    f"{eval_metrics['mean_moves']:.2f},{eval_metrics['mean_reward']:.2f},{mean_loss:.4f}\n"
                 )
+
+            with open(history_json_path, "w") as f:
+                json.dump(history, f, indent=2)
+
+            print(
+                f"Episode {episode:5d} | Epsilon: {epsilon:.3f} | "
+                f"Eval Win Rate: {eval_metrics['win_rate'] * 100:5.1f}% | "
+                f"Eval Avg Moves: {eval_metrics['mean_moves']:4.1f} | "
+                f"Eval Avg Reward: {eval_metrics['mean_reward']:6.1f} | "
+                f"MSBE Loss: {mean_loss:.4f}"
+            )
 
             if eval_metrics["win_rate"] > best_win_rate:
                 best_win_rate = eval_metrics["win_rate"]
@@ -141,6 +172,7 @@ def train_dqn(args):
     final_model_path = save_dir / f"order_dqn_{args.chaos_mode}_final.pt"
     agent.save(str(final_model_path))
     print(f"Training complete. Final model saved to {final_model_path}")
+    print(f"Metrics saved to {metrics_csv_path} and {history_json_path}")
 
 if __name__ == "__main__":                                                              
     parser = argparse.ArgumentParser(description="Train Order's policy using DQN with Action Masking")                                                                          

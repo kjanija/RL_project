@@ -247,33 +247,56 @@ class OrderAndChaosEnv(gymnasium.Env):
         except Exception:
             return None
 
+    def _move_creates_five(self, r: int, c: int, sym: int) -> bool:
+        """
+        Checks if placing sym at (r, c) would complete a 5-in-a-row.
+        """
+        self.board[r, c] = sym
+        creates_five = self._check_five_in_a_row()
+        self.board[r, c] = 0
+        return creates_five
+
     def _get_chaos_move(self):
         """
         generates Chaos' move based on conf "chaos_mode"
-            - 'random': uniform random move across empty cells
-            - 'heuristic': defensive blocker prioritizing 4-in-a-row blocks and fork
+            - 'random': uniform random move across empty cells, avoiding completing 5-in-a-row
+            - 'heuristic': defensive blocker prioritizing 4-in-a-row blocks and forks
         """
-
         mode = self.config.get("chaos_mode", "random")
         if mode == "heuristic":
             return self._get_heuristic_chaos_move()
 
-        empty_cells = np.argwhere(self.board == 0)
-        idx = self.np_random.integers(0, len(empty_cells))
-        r, c = empty_cells[idx]
-        symbol = self.np_random.integers(1, 3)
-        return int(r), int(c), int(symbol)
+        return self._get_random_chaos_move()
+
+    def _get_random_chaos_move(self):
+        """
+        Random chaos opponent that does NOT complete 5-in-a-row for Order.
+        Samples uniformly among empty cells and symbols that do not complete 5-in-a-row.
+        """
+        empty_cells = [tuple(cell) for cell in np.argwhere(self.board == 0)]
+        self.np_random.shuffle(empty_cells)
+
+        for r, c in empty_cells:
+            symbols = [1, 2] if self.np_random.random() < 0.5 else [2, 1]
+            for sym in symbols:
+                if not self._move_creates_five(r, c, sym):
+                    return int(r), int(c), int(sym)
+
+        # Fallback only if every remaining legal move completes 5-in-a-row
+        r, c = empty_cells[0]
+        sym = int(self.np_random.integers(1, 3))
+        return int(r), int(c), sym
 
     def _get_heuristic_chaos_move(self):
         """
         Defensive chaos opponent:
         - blocks immediate order 4-in-a-row wins
         - spoils 3-in-a-row open lines
-        - random fallback
+        - random fallback (also avoiding completing 5-in-a-row)
         """
         from src.strategy import ALL_6X6_LINES
 
-        # 1.
+        # 1. Block immediate 4-in-a-row wins
         for line in ALL_6X6_LINES:
             vals = [self.board[r, c] for r, c in line]
             for sym in (1, 2):
@@ -282,7 +305,7 @@ class OrderAndChaosEnv(gymnasium.Env):
                     r, c = line[empty_idx]
                     return int(r), int(c), int(3 - sym)
 
-        # 2.
+        # 2. Spoil open 3-in-a-row threats
         threat_candidates = []
         for line in ALL_6X6_LINES:
             vals = [self.board[r, c] for r, c in line]
@@ -296,9 +319,5 @@ class OrderAndChaosEnv(gymnasium.Env):
             idx = self.np_random.integers(0, len(threat_candidates))
             return threat_candidates[idx]
 
-        # 3.
-        empty_cells = np.argwhere(self.board == 0)
-        idx = self.np_random.integers(0, len(empty_cells))
-        r, c = empty_cells[idx]
-        symbol = self.np_random.integers(1, 3)
-        return int(r), int(c), int(symbol)
+        # 3. Fallback to random non-suicidal move
+        return self._get_random_chaos_move()

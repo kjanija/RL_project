@@ -32,3 +32,4 @@ checkpoints/
 
 # Explicitly ignored directories (as requested)
 docs/
+tmp/

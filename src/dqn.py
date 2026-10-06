@@ -1,0 +1,247 @@
+"""
+Deep Q-Network implementation with invalid action maskinx, experience replay, and Mean Squared Bellman Error minimization for Order's policy
+
+Framed for Sample-Based Approximate Value Iteration:
+    - Onlne Q-network Q_theta and target Q-network Q_theta-
+    - Experience Replay Buffer providing empirical distribution for L2 metric projection
+    - Masked action selection for illegal moves
+    - Masked Bellman optimality target computation
+"""
+
+import random
+from collections import deque
+from typing import Tuple
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
+
+def encode_board(board: np.ndarray) -> np.ndarray:
+    """
+    Converts 6x6 board into a 3-channel binary tensor of shape (3,6,6)
+        - channel 0 for empty or occupied
+        - channel 1 for X or otherwise
+        - channel 2 for O or otherwise
+    """
+    board_np = np.asarray(board, dtype=np.int8)
+    encoded = np.zeros((3, 6, 6), dtype=np.float32)
+    encoded[0] = (board_np == 0).astype(np.float32)
+    encoded[1] = (board_np == 1).astype(np.float32)
+    encoded[2] = (board_np == 2).astype(np.float32)
+    return encoded
+
+
+class OrderQNetwork(nn.Module):
+    """
+    Convolutional Q-network for Order
+    Preserves spatial locality to identify lines of 3,4 and 5
+    Input shape: (b, 3, 6, 6)
+    Output shape: (b, 72)
+    """
+
+    def __init__(
+        self, in_channels: int = 3, action_dim: int = 72, hidden_dim: int = 256
+    ):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.fc1 = nn.Linear(64 * 6 * 6, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, action_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = F.relu(self.conv1(x))
+        h = F.relu(self.conv1(h))
+        h = torch.flatten(h, start_dim=1)  # TODO: why start_dim is set to 1? che fa?
+        h = F.relu(self.fc1(h))
+        q_values = self.fc2(h)
+        return q_values
+
+
+class ReplayBuffer:
+    """
+    Experience replay buffer providing empirical transition distribution
+    Stores transitions: (state, action, reward, next_state, done, next_mask)
+    """
+
+    def __init__(self, capacity: int = 50000):
+        self.buffer = deque(maxlen=capacity)
+
+    def push(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool,
+        next_mask: np.ndarray,
+    ) -> None:
+        self.buffer.append((state, action, reward, next_state, done, next_mask))
+
+    def sample(self, batch_size: int, device: torch.device) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+    ]:
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states, dones, next_masks = zip(*batch)
+
+        states_t = torch.tensor(np.array(states), dtype=torch.float32, device=device)
+        actions_t = torch.tensor(actions, dtype=torch.int64, device=device)
+        rewards_t = torch.tensor(rewards, dtype=torch.float32, device=device)
+        next_states_t = torch.tensor(
+            np.array(next_states), dtype=torch.float32, device=device
+        )
+        dones_t = torch.tensor(dones, dtype=torch.float32, device=device)
+        next_masks_t = torch.tensor(
+            np.array(next_masks), dtype=torch.bool, device=device
+        )
+
+        return states_t, actions_t, rewards_t, next_states_t, dones_t, next_masks_t
+
+    def __len__(self) -> int:
+        return len(self.buffer)
+
+
+class MaskedDQNAgent:
+    """
+    DQN Agentwith invalidaction masking
+
+    Implements sample-based approximate value iteration
+        - theta: online network parameters
+        - theta^-: target network parameters
+        - action masking
+        - loss: mean squared bellman error
+    """
+
+    def __init__(
+        self,
+        in_channels: int = 3,
+        action_dim: int = 72,
+        lr: float = 3e-4,
+        gamma: float = 0.99,
+        buffer_capacity: int = 50000,
+        batch_size: int = 64,
+        target_update_freq: int = 500,
+        device: str = "cpu",
+    ):
+        self.action_dim = action_dim
+        self.gamma = gamma
+        self.batch_size = batch_size
+        self.target_update_freq = target_update_freq
+        self.device = torch.device(device)
+        self.step_count = 0
+
+        # networks
+        self.q_net = OrderQNetwork(in_channels=in_channels, action_dim=action_dim).to(
+            self.device
+        )
+        self.target_net = OrderQNetwork(
+            in_channels=in_channels, action_dim=action_dim
+        ).to(self.device)
+        self.target_net.load_state_dict(self.q_net.state_dict())
+        self.target_net.eval()
+
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
+
+        # MSBE
+        self.loss_fn = nn.MSELoss()
+        self.replay_buffer = ReplayBuffer(capacity=buffer_capacity)
+
+    def select_action(
+        self, state: np.ndarray, mask: np.ndarray, epsilon: float = 0.0
+    ) -> int:
+        """
+        Epsilon-greedy action selection restricted to legal actions
+            - random exploration: uniform sampling from legal actions
+            - greedy exploitation: argmax_{a legal} Q(s,a)
+        """
+        legal_actions = np.where(mask)[0]
+        if len(legal_actions) == 0:
+            return 0
+
+        if random.random() < epsilon:
+            return int(np.random.choice(legal_actions))
+
+        state_tensor = torch.tensor(
+            state, dtype=torch.float32, device=self.device
+        ).unsqueeze(0)
+
+        with torch.no_grad():
+            q_values = self.q_net(state_tensor).unsqueeze(0)
+
+        # mask invalid actions with large negative value
+        mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
+        masked_q = q_values.clone()
+        masked_q[~mask_tensor] = (
+            -torch.inf
+        )  # TODO: is inf fine or should I write an arbitrary small number like -1e9?
+
+        return int(torch.argmax(masked_q).item())
+
+    def update(self) -> float:
+        """
+        Performs one gradient step solving empirical L2 metric projection
+        """
+
+        if len(self.replay_buffer) < self.batch_size:
+            return 0.0
+
+        states, actions, rewards, next_states, dones, next_masks = (
+            self.replay_buffer.sample(self.batch_size, self.device)
+        )
+
+        # Q_theta(s,a)
+        q_values = self.q_net(states)
+        current_q = q_values.gather(1, actions.unsqueeze(1)).squeeze(
+            1
+        )  # TODO: need to better understand squeeze and unsqueeze and gather
+
+        # bellman target calculation with masked next state actions
+        with torch.no_grad():
+            next_q = self.target_net(next_states)
+
+            # mask
+            next_q[~next_masks] = -torch.inf
+            max_next_q, _ = torch.max(next_q, dim=1)
+
+            # guard against edge-case where state was full
+            max_next_q = torch.clamp(max_next_q, min=-1e8)
+            target_q = (
+                rewards + (1.0 - dones) * self.gamma * max_next_q
+            )  # TODO: write what this corresponds to
+
+        loss = self.loss_fn(current_q, target_q)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=10.0)
+        self.optimizer.step()
+
+        self.step_count += 1
+        if self.step_count % self.target_update_freq == 0:
+            self.target_net.load_state_dict(self.q_net.state_dict())
+
+        return float(loss.item())
+
+    def save(self, filepath: str) -> None:
+        torch.save(
+            {
+                "q_net_state_dict": self.q_net.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "step_count": self.step_count,
+            },
+            filepath,
+        )
+
+    def load(self, filepath: str) -> None:
+        checkpoint = torch.load(filepath, map_location=self.device)
+        self.q_net.load_state_dict(checkpoint["q_net_state_dict"])
+        self.target_net.load_state_dict(checkpoint["q_net_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.step_count = checkpoint.get("step_count", 0)

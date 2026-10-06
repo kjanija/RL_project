@@ -6,6 +6,10 @@ Curriculum training script for Order's DQN policy
 
 import argparse
 from pathlib import Path
+import sys
+
+# Ensure repository root is in sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 
@@ -89,7 +93,7 @@ def train_dqn(args):
         f"--- Starting DQN training (Chaos mode: {args.chaos_mode}, Episodes: {args.episodes}) ---"
     )
 
-    for episone in rang(1, args.episodes + 1):
+    for episode in range(1, args.episodes + 1):
         obs, _ = env.reset()
         done = False
         ep_reward = 0.0
@@ -116,7 +120,7 @@ def train_dqn(args):
         # decay epsilon
         epsilon = max(args.epsilon_end, epsilon * args.epsilon_decay)
 
-        if episone % args.eval_interval == 0:
+        if episode % args.eval_interval == 0:
             eval_metrics = evaluate(agent, env, num_episodes=args.eval_episodes)
             mean_loss = np.mean(ep_loss) if ep_loss else 0.0
             print(                                                                      

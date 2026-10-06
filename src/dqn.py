@@ -53,8 +53,9 @@ class OrderQNetwork(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = F.relu(self.conv1(x))
-        h = F.relu(self.conv1(h))
-        h = torch.flatten(h, start_dim=1)  # TODO: why start_dim is set to 1? che fa?
+        h = F.relu(self.conv2(h))
+        # start_dim=1 preserves batch dimension 0 and flattens (64, 6, 6) -> (2304,) per sample
+        h = torch.flatten(h, start_dim=1)
         h = F.relu(self.fc1(h))
         q_values = self.fc2(h)
         return q_values
@@ -173,14 +174,12 @@ class MaskedDQNAgent:
         ).unsqueeze(0)
 
         with torch.no_grad():
-            q_values = self.q_net(state_tensor).unsqueeze(0)
+            q_values = self.q_net(state_tensor).squeeze(0)
 
-        # mask invalid actions with large negative value
+        # mask invalid actions with large negative value (-1e9 avoids 0 * inf = NaN)
         mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
         masked_q = q_values.clone()
-        masked_q[~mask_tensor] = (
-            -torch.inf
-        )  # TODO: is inf fine or should I write an arbitrary small number like -1e9?
+        masked_q[~mask_tensor] = -1e9
 
         return int(torch.argmax(masked_q).item())
 
@@ -197,24 +196,21 @@ class MaskedDQNAgent:
         )
 
         # Q_theta(s,a)
+        # Q_theta(s, a): actions.unsqueeze(1) creates (B, 1) indices for gather; squeeze(1) restores (B,)
         q_values = self.q_net(states)
-        current_q = q_values.gather(1, actions.unsqueeze(1)).squeeze(
-            1
-        )  # TODO: need to better understand squeeze and unsqueeze and gather
+        current_q = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        # bellman target calculation with masked next state actions
+        # Bellman optimality target: y = r + (1 - done) * gamma * max_{a' in A(s')} Q_target(s', a')
         with torch.no_grad():
             next_q = self.target_net(next_states)
 
-            # mask
-            next_q[~next_masks] = -torch.inf
+            # Mask invalid next-state actions with -1e9 (avoids 0.0 * inf = NaN)
+            next_q[~next_masks] = -1e9
             max_next_q, _ = torch.max(next_q, dim=1)
 
-            # guard against edge-case where state was full
+            # Guard against edge-case where next state was full
             max_next_q = torch.clamp(max_next_q, min=-1e8)
-            target_q = (
-                rewards + (1.0 - dones) * self.gamma * max_next_q
-            )  # TODO: write what this corresponds to
+            target_q = rewards + (1.0 - dones) * self.gamma * max_next_q
 
         loss = self.loss_fn(current_q, target_q)
 

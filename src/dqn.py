@@ -37,7 +37,9 @@ def encode_board(board: np.ndarray) -> np.ndarray:
 class OrderQNetwork(nn.Module):
     """
     Convolutional Q-network for Order
-    Preserves spatial locality to identify lines of 3,4 and 5
+    Preserves spatial locality to identify lines of 3, 4, and 5.
+    3 conv layers (3 -> 64 -> 128 -> 128) expand receptive field to 7x7,
+    spanning the entire 6x6 board in a single pass.
     Input shape: (b, 3, 6, 6)
     Output shape: (b, 72)
     """
@@ -47,14 +49,16 @@ class OrderQNetwork(nn.Module):
     ):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-        self.fc1 = nn.Linear(64 * 6 * 6, hidden_dim)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.fc1 = nn.Linear(128 * 6 * 6, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, action_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = F.relu(self.conv1(x))
         h = F.relu(self.conv2(h))
-        # start_dim=1 preserves batch dimension 0 and flattens (64, 6, 6) -> (2304,) per sample
+        h = F.relu(self.conv3(h))
+        # start_dim=1 preserves batch dimension 0 and flattens (128, 6, 6) -> (4608,) per sample
         h = torch.flatten(h, start_dim=1)
         h = F.relu(self.fc1(h))
         q_values = self.fc2(h)
@@ -127,7 +131,7 @@ class MaskedDQNAgent:
         lr: float = 3e-4,
         gamma: float = 0.99,
         buffer_capacity: int = 50000,
-        batch_size: int = 64,
+        batch_size: int = 128,
         target_update_freq: int = 500,
         device: str = "cpu",
     ):

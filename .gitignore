@@ -24,6 +24,8 @@ runs/
 logs/
 tb_logs/
 checkpoints/
+slurm_logs/
+time_test_results.json
 
 # IDEs and OS
 .vscode/

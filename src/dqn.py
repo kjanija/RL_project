@@ -109,6 +109,16 @@ class ReplayBuffer:
 
         return states_t, actions_t, rewards_t, next_states_t, dones_t, next_masks_t
 
+    def trim_to_size(self, max_retained: int = 20000) -> None:
+        """
+        Cleanses obsolete transitions across curriculum stages by keeping
+        only the max_retained most recent transitions.
+        """
+        if max_retained > 0 and len(self.buffer) > max_retained:
+            recent = list(self.buffer)[-max_retained:]
+            self.buffer.clear()
+            self.buffer.extend(recent)
+
     def __len__(self) -> int:
         return len(self.buffer)
 
@@ -129,17 +139,19 @@ class MaskedDQNAgent:
         in_channels: int = 3,
         action_dim: int = 72,
         lr: float = 3e-4,
-        gamma: float = 0.99,
-        buffer_capacity: int = 50000,
-        batch_size: int = 128,
-        target_update_freq: int = 500,
+        gamma: float = 0.90,
+        buffer_capacity: int = 100000,
+        batch_size: int = 256,
+        target_update_freq: int = 1000,
         device: str = "cpu",
+        double_dqn: bool = False,
     ):
         self.action_dim = action_dim
         self.gamma = gamma
         self.batch_size = batch_size
         self.target_update_freq = target_update_freq
         self.device = torch.device(device)
+        self.double_dqn = double_dqn
         self.step_count = 0
 
         # networks
@@ -189,7 +201,8 @@ class MaskedDQNAgent:
 
     def update(self) -> float:
         """
-        Performs one gradient step solving empirical L2 metric projection
+        Performs one gradient step solving empirical L2 metric projection.
+        Supports both Standard DQN (default) and Double DQN (if double_dqn=True).
         """
 
         if len(self.replay_buffer) < self.batch_size:
@@ -204,13 +217,24 @@ class MaskedDQNAgent:
         q_values = self.q_net(states)
         current_q = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        # Bellman optimality target: y = r + (1 - done) * gamma * max_{a' in A(s')} Q_target(s', a')
+        # Bellman optimality target computation
         with torch.no_grad():
-            next_q = self.target_net(next_states)
+            if self.double_dqn:
+                # Double DQN:
+                # 1. Action selection using ONLINE network Q_theta (with legal action masking)
+                online_next_q = self.q_net(next_states)
+                online_next_q[~next_masks] = -1e9
+                best_next_actions = torch.argmax(online_next_q, dim=1, keepdim=True)
 
-            # Mask invalid next-state actions with -1e9 (avoids 0.0 * inf = NaN)
-            next_q[~next_masks] = -1e9
-            max_next_q, _ = torch.max(next_q, dim=1)
+                # 2. Action evaluation using TARGET network Q_theta-
+                target_next_q = self.target_net(next_states)
+                max_next_q = target_next_q.gather(1, best_next_actions).squeeze(1)
+            else:
+                # Standard DQN (default):
+                next_q = self.target_net(next_states)
+                # Mask invalid next-state actions with -1e9 (avoids 0.0 * inf = NaN)
+                next_q[~next_masks] = -1e9
+                max_next_q, _ = torch.max(next_q, dim=1)
 
             # Guard against edge-case where next state was full
             max_next_q = torch.clamp(max_next_q, min=-1e8)
@@ -220,7 +244,7 @@ class MaskedDQNAgent:
 
         self.optimizer.zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=10.0)
+        nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=5.0)
         self.optimizer.step()
 
         self.step_count += 1
@@ -235,6 +259,7 @@ class MaskedDQNAgent:
                 "q_net_state_dict": self.q_net.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "step_count": self.step_count,
+                "double_dqn": self.double_dqn,
             },
             filepath,
         )
@@ -245,3 +270,5 @@ class MaskedDQNAgent:
         self.target_net.load_state_dict(checkpoint["q_net_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.step_count = checkpoint.get("step_count", 0)
+        if "double_dqn" in checkpoint:
+            self.double_dqn = bool(checkpoint["double_dqn"])

@@ -138,7 +138,7 @@ def test_intermediate_reward_mixed_symbols_blocked():
 
 
 def test_teacher_reward_awarded():
-    config = {"teacher_reward": 7}
+    config = {"teacher_reward": 7, "step_reward": 0}
     env = OrderAndChaosEnv(config=config)
     env.reset()
 
@@ -197,4 +197,15 @@ def test_random_chaos_avoids_completing_five_in_a_row():
         r, c, sym = env._get_chaos_move()
         if r == 0 and c == 4:
             assert sym != 1, "Random Chaos played the completing symbol (X) at (0,4)!"
+
+
+def test_calibrated_default_rewards():
+    env = OrderAndChaosEnv()
+    assert env.win_reward == 1.0
+    assert env.loss_reward == -1.0
+    assert env.illegal_move_reward == -1.0
+    assert env.step_reward == -0.005
+    assert env.reward_3_in_a_row == 0.02
+    assert env.reward_4_in_a_row == 0.05
+    assert env.teacher_reward == 0.02
 

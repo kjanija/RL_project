@@ -27,14 +27,14 @@ class OrderAndChaosEnv(gymnasium.Env):
             config = {}
         self.config = config
 
-        # configurable rewards
-        self.illegal_move_reward = config.get("illegal_move_reward", -100)
-        self.win_reward = config.get("win_reward", 100)
-        self.loss_reward = config.get("loss_reward", -100)
-        self.step_reward = config.get("step_reward", 0)
-        self.reward_3_in_a_row = config.get("reward_3_in_a_row", 1)
-        self.reward_4_in_a_row = config.get("reward_4_in_a_row", 5)
-        self.teacher_reward = config.get("teacher_reward", 2)
+        # configurable rewards (calibrated to [-1.0, 1.0] to bound MSBE loss)
+        self.illegal_move_reward = float(config.get("illegal_move_reward", -1.0))
+        self.win_reward = float(config.get("win_reward", 1.0))
+        self.loss_reward = float(config.get("loss_reward", -1.0))
+        self.step_reward = float(config.get("step_reward", -0.005))
+        self.reward_3_in_a_row = float(config.get("reward_3_in_a_row", 0.02))
+        self.reward_4_in_a_row = float(config.get("reward_4_in_a_row", 0.05))
+        self.teacher_reward = float(config.get("teacher_reward", 0.02))
         self.chaos_defense_prob = float(config.get("chaos_defense_prob", 1.0))
 
         # 6x6 board with either X or O (36*2)

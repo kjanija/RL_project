@@ -25,6 +25,7 @@ logs/
 tb_logs/
 checkpoints/
 slurm_logs/
+backups/
 time_test_results.json
 
 # IDEs and OS

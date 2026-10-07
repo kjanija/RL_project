@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from src.env import OrderAndChaosEnv
 from src.strategy import (
     get_order_winning_move,
     find_immediate_5_in_a_row_win,
@@ -61,6 +62,12 @@ def test_figure4_board1_exception():
     assert exc == (0, 3, 2), f"Expected play O at (0, 3), got {exc}"
 
 
+def _has_five(board):
+    env = OrderAndChaosEnv()
+    env.board = board.astype(np.int8)
+    return env._check_five_in_a_row()
+
+
 def test_simulation_100_percent_win_against_random():
     rng = np.random.default_rng(123)
     for _ in range(50):
@@ -68,7 +75,7 @@ def test_simulation_100_percent_win_against_random():
         while True:
             r, c, s = get_order_winning_move(board)
             board[r, c] = s
-            if find_immediate_5_in_a_row_win(board) is not None:
+            if _has_five(board):
                 break
             if np.all(board != 0):
                 pytest.fail("Order failed to win against random Chaos!")
@@ -76,3 +83,5 @@ def test_simulation_100_percent_win_against_random():
             idx = rng.integers(0, len(empty))
             cr, cc = empty[idx]
             board[cr, cc] = rng.integers(1, 3)
+            if _has_five(board):
+                break  # Chaos completed a line: Order wins by the rules

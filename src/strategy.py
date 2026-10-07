@@ -264,6 +264,23 @@ def get_order_winning_move(board):
 
 def _inner_stretegy(inner_board):
     """
+    Move for Order in the 4x4 center, in inner board coordinates (row, col, symbol).
+
+    The rule-based Strategy IV.2 (_inner_heuristic_strategy) does not force a
+    homogeneous 4-line against all Chaos replies when implemented from the paper's
+    text, so we play an exact solution of the 4x4 game (src/inner_solver.py).
+    The heuristic move is kept whenever it is also winning, and is used as a
+    fallback if the solved table has not been built.
+    """
+    from src.inner_solver import winning_move
+
+    heuristic_move = _inner_heuristic_strategy(inner_board)
+    solved_move = winning_move(inner_board, preferred=heuristic_move)
+    return solved_move if solved_move is not None else heuristic_move
+
+
+def _inner_heuristic_strategy(inner_board):
+    """
     Implements the 6 heuristics strategy from 4.2 for playing in the 4x4 center
     Returns (row, col, symbol) in inner board coordinates
     """

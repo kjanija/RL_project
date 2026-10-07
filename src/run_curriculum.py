@@ -3,7 +3,7 @@ src/run_curriculum.py
 
 Unified curriculum automation runner script for Order and Chaos RL project.
 Sequences the 5-stage curriculum automatically:
-  1. Stage 1  (Random)              : chaos_mode="random",    beta=0.00,  500 ep, lr=3e-4,   eps: 1.00 -> 0.05 (decay 0.995)
+  1. Stage 1  (Random)              : chaos_mode="random",    beta=0.00,  500 ep, lr=3e-4,   eps: 1.00 -> 0.05 (decay 0.994)
   2. Stage 2A (Light Defense)       : chaos_mode="heuristic", beta=0.35,  600 ep, lr=2e-4,   eps: 0.35 -> 0.05 (decay 0.995)
   3. Stage 2B (Medium Defense)      : chaos_mode="heuristic", beta=0.70,  800 ep, lr=1.5e-4, eps: 0.25 -> 0.03 (decay 0.996)
   4. Stage 2C (High Defense Bridge) : chaos_mode="heuristic", beta=0.85,  800 ep, lr=1.2e-4, eps: 0.20 -> 0.02 (decay 0.996)
@@ -41,55 +41,55 @@ CURRICULUM_STAGES = [
         "name": "Stage 1: Random Opponent Baseline",
         "chaos_mode": "random",
         "chaos_defense_prob": 0.0,
-        "episodes": 500,
+        "episodes": 8000,
         "lr": 3e-4,
         "epsilon_start": 1.0,
         "epsilon_end": 0.05,
-        "epsilon_decay": 0.995,
+        "epsilon_decay": 0.99950,
     },
     {
         "id": "stage2a_light",
         "name": "Stage 2A: Light Defense (beta=0.35)",
         "chaos_mode": "heuristic",
         "chaos_defense_prob": 0.35,
-        "episodes": 600,
+        "episodes": 10000,
         "lr": 2e-4,
-        "epsilon_start": 0.35,
+        "epsilon_start": 0.40,
         "epsilon_end": 0.05,
-        "epsilon_decay": 0.995,
+        "epsilon_decay": 0.99970,
     },
     {
         "id": "stage2b_medium",
         "name": "Stage 2B: Medium Defense (beta=0.70)",
         "chaos_mode": "heuristic",
         "chaos_defense_prob": 0.70,
-        "episodes": 800,
+        "episodes": 12000,
         "lr": 1.5e-4,
-        "epsilon_start": 0.25,
+        "epsilon_start": 0.30,
         "epsilon_end": 0.03,
-        "epsilon_decay": 0.996,
+        "epsilon_decay": 0.99973,
     },
     {
         "id": "stage2c_bridge",
         "name": "Stage 2C: High Defense Bridge (beta=0.85)",
         "chaos_mode": "heuristic",
         "chaos_defense_prob": 0.85,
-        "episodes": 800,
+        "episodes": 12000,
         "lr": 1.2e-4,
-        "epsilon_start": 0.20,
+        "epsilon_start": 0.25,
         "epsilon_end": 0.02,
-        "epsilon_decay": 0.996,
+        "epsilon_decay": 0.99972,
     },
     {
         "id": "stage2d_full",
         "name": "Stage 2D: Full Blocker (beta=1.00)",
         "chaos_mode": "heuristic",
         "chaos_defense_prob": 1.00,
-        "episodes": 1500,
+        "episodes": 18000,
         "lr": 1e-4,
         "epsilon_start": 0.15,
         "epsilon_end": 0.01,
-        "epsilon_decay": 0.998,
+        "epsilon_decay": 0.99980,
     },
 ]
 
@@ -529,7 +529,7 @@ def main():
     parser.add_argument(
         "--device",
         type=str,
-        default="cpu",
+        default="cuda" if torch.cuda.is_available() else "cpu",
         help="Torch computation device ('cpu' or 'cuda')",
     )
     parser.add_argument(
@@ -546,14 +546,14 @@ def main():
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=128,
-        help="Mini-batch size for experience replay updates (default: 128)",
+        default=256,
+        help="Mini-batch size for experience replay updates (default: 256)",
     )
     parser.add_argument(
         "--buffer_capacity",
         type=int,
-        default=50000,
-        help="Maximum capacity of inherited replay buffer (default: 50000)",
+        default=200000,
+        help="Maximum capacity of inherited replay buffer (default: 200000)",
     )
     parser.add_argument(
         "--gamma",
@@ -564,13 +564,13 @@ def main():
     parser.add_argument(
         "--target_update_freq",
         type=int,
-        default=500,
+        default=1000,
         help="Frequency (in gradient steps) for target network synchronization",
     )
     parser.add_argument(
         "--eval_interval",
         type=int,
-        default=100,
+        default=500,
         help="Episodes between greedy evaluations during regular training",
     )
     parser.add_argument(

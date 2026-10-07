@@ -60,13 +60,13 @@ def train_dqn(args):
     env_config = {
         "chaos_mode": args.chaos_mode,
         "chaos_defense_prob": args.chaos_defense_prob,
-        "win_reward": 100.0,
-        "loss_reward": -100.0,
-        "illegal_move_reward": -100.0,
-        "step_reward": -0.5,
-        "reward_3_in_a_row": 1.0,
-        "reward_4_in_a_row": 5.0,
-        "teacher_reward": 2.0,
+        "win_reward": 1.0,
+        "loss_reward": -1.0,
+        "illegal_move_reward": -1.0,
+        "step_reward": -0.005,
+        "reward_3_in_a_row": 0.02,
+        "reward_4_in_a_row": 0.05,
+        "teacher_reward": 0.02,
     }
 
     env = OrderAndChaosEnv(config=env_config)
@@ -78,6 +78,7 @@ def train_dqn(args):
         batch_size=args.batch_size,
         target_update_freq=args.target_update_freq,
         device=args.device,
+        double_dqn=args.double_dqn,
     )
 
     if args.resume_checkpoint and Path(args.resume_checkpoint).exists():
@@ -182,11 +183,12 @@ if __name__ == "__main__":
     parser.add_argument("--chaos_defense_prob", type=float, default=1.0, help="Probability of playing heuristic defensive moves (vs random fallback)")
     parser.add_argument("--model_tag", type=str, default=None, help="Optional custom identifier for saved model/metrics filenames")                                                       
     parser.add_argument("--episodes", type=int, default=2000, help="Total training episodes")                                                                                
-    parser.add_argument("--batch_size", type=int, default=64, help="Mini-batch size for MSBE projection")                                                                         
+    parser.add_argument("--batch_size", type=int, default=256, help="Mini-batch size for MSBE projection")                                                                         
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate for Adam")
-    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")    
-    parser.add_argument("--buffer_capacity", type=int, default=50000, help="Replay buffer capacity")                                                                         
-    parser.add_argument("--target_update_freq", type=int, default=500, help="Target network update period")                                                                   
+    parser.add_argument("--gamma", type=float, default=0.90, help="Discount factor (default: 0.90)")    
+    parser.add_argument("--buffer_capacity", type=int, default=100000, help="Replay buffer capacity (default: 100000)")                                                                         
+    parser.add_argument("--double_dqn", action="store_true", default=False, help="Enable Double DQN target calculation")
+    parser.add_argument("--target_update_freq", type=int, default=1000, help="Target network update period")                                                                   
     parser.add_argument("--epsilon_start", type=float, default=1.0, help="Initial exploration rate")                                                                        
     parser.add_argument("--epsilon_end", type=float, default=0.05, help="Minimum exploration rate")                                                                        
     parser.add_argument("--epsilon_decay", type=float, default=0.997, help="Multiplicative epsilon decay factor")                                               

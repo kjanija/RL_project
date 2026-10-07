@@ -103,11 +103,14 @@ log "INFO" "Launching 5-Stage Curriculum Training on V100 GPU..."
 uv run python src/run_curriculum.py \
   --device cuda \
   --batch_size 256 \
-  --buffer_capacity 200000 \
+  --buffer_capacity 100000 \
+  --buffer_trim_size 20000 \
+  --gamma 0.90 \
   --target_update_freq 1000 \
   --eval_interval 500 \
   --eval_episodes 40 \
   --holdout_episodes 100 \
   --output_dir models
+  # Note: Standard DQN is used by default. To enable Double DQN, add: --double_dqn
 
 log "INFO" "Training completed. All checkpoints and logs saved to models/."

@@ -318,8 +318,11 @@ def run_curriculum(args):
     print("           STARTING AUTOMATED ORDER & CHAOS CURRICULUM RUNNER       ")
     print("=" * 76)
     print(f"Device               : {args.device}")
+    print(f"Algorithm            : {'Double DQN (DDQN)' if args.double_dqn else 'Standard DQN (Default)'}")
     print(f"Batch Size           : {args.batch_size}")
     print(f"Buffer Capacity      : {args.buffer_capacity}")
+    print(f"Buffer Trim Size     : {args.buffer_trim_size}")
+    print(f"Discount Factor Gamma: {args.gamma}")
     print(f"Output Directory     : {output_dir.resolve()}")
     print(f"Quick Test Mode      : {args.quick_test}")
     print(f"Eval Interval        : {eval_interval} eps (eval count: {eval_episodes})")
@@ -334,6 +337,7 @@ def run_curriculum(args):
         batch_size=args.batch_size,
         target_update_freq=args.target_update_freq,
         device=args.device,
+        double_dqn=args.double_dqn,
     )
 
     if args.initial_checkpoint and Path(args.initial_checkpoint).exists():
@@ -378,27 +382,36 @@ def run_curriculum(args):
                     f"[Inheritance Warning] Previous checkpoint {prev_best_path} not found. Continuing with current network."
                 )
 
-            print(
-                f"[Crucial Replay Buffer Inheritance] Preserved active replay buffer "
-                f"with {len(agent.replay_buffer)} transitions (eliminating cold-start amnesia)."
-            )
+            # Stage-aware replay buffer cleansing
+            if args.buffer_trim_size > 0:
+                prev_len = len(agent.replay_buffer)
+                agent.replay_buffer.trim_to_size(max_retained=args.buffer_trim_size)
+                print(
+                    f"[Stage-Aware Cleansing] Trimmed replay buffer from {prev_len} "
+                    f"to {len(agent.replay_buffer)} recent transitions to prevent distribution lag."
+                )
+            else:
+                print(
+                    f"[Crucial Replay Buffer Inheritance] Preserved active replay buffer "
+                    f"with {len(agent.replay_buffer)} transitions."
+                )
 
         # Set stage-specific learning rate
         for param_group in agent.optimizer.param_groups:
             param_group["lr"] = stage_lr
         print(f"[Optimizer] Learning rate configured to: {stage_lr:.2e}")
 
-        # Configure environment for current stage
+        # Configure environment for current stage with calibrated rewards
         env_config = {
             "chaos_mode": chaos_mode,
             "chaos_defense_prob": chaos_defense_prob,
-            "win_reward": 100.0,
-            "loss_reward": -100.0,
-            "illegal_move_reward": -100.0,
-            "step_reward": -0.5,
-            "reward_3_in_a_row": 1.0,
-            "reward_4_in_a_row": 5.0,
-            "teacher_reward": 2.0,
+            "win_reward": 1.0,
+            "loss_reward": -1.0,
+            "illegal_move_reward": -1.0,
+            "step_reward": -0.005,
+            "reward_3_in_a_row": 0.02,
+            "reward_4_in_a_row": 0.05,
+            "teacher_reward": 0.02,
         }
         env = OrderAndChaosEnv(config=env_config)
 
@@ -550,16 +563,28 @@ def main():
         help="Mini-batch size for experience replay updates (default: 256)",
     )
     parser.add_argument(
+        "--double_dqn",
+        action="store_true",
+        default=False,
+        help="Enable Double DQN target calculation (decouples action selection and evaluation). Default: False (Standard DQN).",
+    )
+    parser.add_argument(
         "--buffer_capacity",
         type=int,
-        default=200000,
-        help="Maximum capacity of inherited replay buffer (default: 200000)",
+        default=100000,
+        help="Maximum capacity of inherited replay buffer (default: 100000)",
+    )
+    parser.add_argument(
+        "--buffer_trim_size",
+        type=int,
+        default=20000,
+        help="Maximum transitions to retain across stage boundaries (default: 20000, set <=0 to disable)",
     )
     parser.add_argument(
         "--gamma",
         type=float,
-        default=0.99,
-        help="Discount factor for Bellman optimality backup",
+        default=0.90,
+        help="Discount factor for Bellman optimality backup (default: 0.90)",
     )
     parser.add_argument(
         "--target_update_freq",

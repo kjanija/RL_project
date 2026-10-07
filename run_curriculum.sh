@@ -99,9 +99,10 @@ trap cleanup EXIT INT TERM
 log "INFO" "Syncing Python virtual environment with uv..."
 uv sync
 
-log "INFO" "Launching 5-Stage Curriculum Training on V100 GPU..."
+log "INFO" "Launching 5-Stage Curriculum Training on V100 GPU (Double DQN)..."
 uv run python src/run_curriculum.py \
   --device cuda \
+  --double_dqn \
   --batch_size 256 \
   --buffer_capacity 100000 \
   --buffer_trim_size 20000 \
@@ -111,6 +112,5 @@ uv run python src/run_curriculum.py \
   --eval_episodes 40 \
   --holdout_episodes 100 \
   --output_dir models
-  # Note: Standard DQN is used by default. To enable Double DQN, add: --double_dqn
 
 log "INFO" "Training completed. All checkpoints and logs saved to models/."

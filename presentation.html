@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order &amp; Chaos — Deep RL for Order</title>
+<style>
+:root {
+  --bg: #f6f5f0;
+  --surface: #ffffff;
+  --surface-2: #eceae2;
+  --ink: #14161b;
+  --muted: #576072;
+  --line: #dcd8cc;
+  --accent: #1f5eff;
+  --accent-soft: #e3ebff;
+  --chaos: #d9482b;
+  --chaos-soft: #fde7e1;
+  --ok: #17895a;
+  --ok-soft: #dcf3e8;
+  --warn: #a96a07;
+  --warn-soft: #fbefd5;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1016;
+    --surface: #171a23;
+    --surface-2: #1f2330;
+    --ink: #eceef4;
+    --muted: #a3abbc;
+    --line: #2b3040;
+    --accent: #7499ff;
+    --accent-soft: #1c2848;
+    --chaos: #ff7d5e;
+    --chaos-soft: #3a211b;
+    --ok: #4cc58b;
+    --ok-soft: #14301f;
+    --warn: #e5a93f;
+    --warn-soft: #34290f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1016;
+  --surface: #171a23;
+  --surface-2: #1f2330;
+  --ink: #eceef4;
+  --muted: #a3abbc;
+  --line: #2b3040;
+  --accent: #7499ff;
+  --accent-soft: #1c2848;
+  --chaos: #ff7d5e;
+  --chaos-soft: #3a211b;
+  --ok: #4cc58b;
+  --ok-soft: #14301f;
+  --warn: #e5a93f;
+  --warn-soft: #34290f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: min(1.45vw, 2.6vh);
+  line-height: 1.4;
+  overflow: hidden;
+}
+
+.deck { position: fixed; inset: 0; }
+.slide {
+  position: absolute; inset: 0;
+  padding: 5.5vh 6vw 9vh;
+  display: none;
+  flex-direction: column;
+}
+.slide.active { display: flex; }
+.slide > .body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1.1em; }
+
+h1 { font-size: 3.2em; line-height: 1.05; margin: 0 0 .25em; letter-spacing: -.02em; }
+h2 { font-size: 1.9em; line-height: 1.1; margin: 0 0 .5em; letter-spacing: -.01em; }
+h3 { font-size: 1.1em; margin: 0 0 .35em; }
+p { margin: 0 0 .6em; }
+.kicker {
+  font-size: .72em; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent); font-weight: 700; margin-bottom: .5em;
+}
+.kicker code { font: inherit; letter-spacing: inherit; text-transform: none; }
+.muted { color: var(--muted); }
+.small { font-size: .78em; }
+.lead { font-size: 1.15em; color: var(--muted); max-width: 46em; }
+
+ul { margin: 0; padding-left: 1.1em; }
+li { margin-bottom: .35em; }
+li::marker { color: var(--accent); }
+
+.cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6em; align-items: start; }
+.cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2em; align-items: stretch; }
+.cols-wide-left { display: grid; grid-template-columns: 1.25fr 1fr; gap: 1.8em; align-items: center; }
+.center { display: flex; align-items: center; justify-content: center; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: .7em;
+  padding: .9em 1.1em;
+}
+.card.accent { border-left: .3em solid var(--accent); }
+.card.chaos { border-left: .3em solid var(--chaos); }
+.card.ok { border-left: .3em solid var(--ok); }
+.card.warn { border-left: .3em solid var(--warn); }
+.card h3 { margin-top: 0; }
+
+.big-num { font-size: 2.6em; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.big-num.ok { color: var(--ok); }
+.big-num.chaos { color: var(--chaos); }
+.big-num.accent { color: var(--accent); }
+
+.tag {
+  display: inline-block; padding: .08em .55em; border-radius: 99px;
+  font-size: .72em; font-weight: 700;
+  background: var(--accent-soft); color: var(--accent);
+}
+
+code, .mono { font-family: "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace; font-size: .86em; }
+.formula {
+  font-family: "Cambria Math", "STIX Two Math", Cambria, Georgia, serif;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: .6em;
+  padding: .7em 1em;
+  font-size: 1.05em;
+  text-align: center;
+  margin: .4em 0 .7em;
+  overflow-x: auto;
+}
+.formula i { font-style: italic; }
+
+table { border-collapse: collapse; width: 100%; font-size: .85em; }
+th, td { text-align: left; padding: .38em .7em; border-bottom: 1px solid var(--line); }
+th { font-size: .78em; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.hl td { background: var(--accent-soft); font-weight: 600; }
+
+.flow { display: flex; align-items: stretch; gap: .5em; flex-wrap: wrap; }
+.node {
+  background: var(--surface); border: 1px solid var(--line); border-radius: .55em;
+  padding: .5em .8em; text-align: center; font-size: .88em; flex: 1; min-width: 5em;
+}
+.node b { display: block; font-size: 1.05em; }
+.node span { color: var(--muted); font-size: .85em; }
+.node.accent { border-color: var(--accent); background: var(--accent-soft); }
+.node.ok { border-color: var(--ok); background: var(--ok-soft); }
+.node.chaos { border-color: var(--chaos); background: var(--chaos-soft); }
+.arrow { align-self: center; color: var(--muted); font-size: 1.1em; }
+
+.timeline { display: flex; width: 100%; height: 3.4em; border-radius: .5em; overflow: hidden; border: 1px solid var(--line); }
+.timeline div { display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; font-weight: 700; font-size: .82em; line-height: 1.15; }
+
+.chrome {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  height: 6.5vh; padding: 0 6vw;
+  display: flex; align-items: center; justify-content: space-between;
+  color: var(--muted); font-size: .7em;
+  pointer-events: none;
+}
+.chrome button { pointer-events: auto; }
+.progress { position: fixed; left: 0; top: 0; height: .35vh; background: var(--accent); transition: width .25s; }
+.nav-btn {
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+  border-radius: .5em; padding: .25em .8em; cursor: pointer; font: inherit; font-size: .95em;
+}
+.nav-btn:hover { border-color: var(--accent); }
+.hint { opacity: .75; }
+
+svg text { font-family: inherit; }
+.legend { display: flex; gap: 1.2em; font-size: .8em; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: .9em; height: .9em; border-radius: .2em; margin-right: .4em; vertical-align: -.1em; }
+
+.title-slide { justify-content: center; }
+.title-slide .accent-bar { width: 4em; height: .35em; background: var(--accent); border-radius: 99px; margin-bottom: 1.2em; }
+
+@media print {
+  body { overflow: visible; font-size: 12px; }
+  .deck { position: static; }
+  .slide { position: static; display: flex !important; page-break-after: always; min-height: 100vh; }
+  .chrome, .progress { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+
+<main class="deck" id="deck">
+
+<!-- 1. Title -->
+<section class="slide title-slide">
+  <div class="body" style="justify-content:center">
+    <div class="accent-bar"></div>
+    <div class="kicker">Exam project · Reinforcement Learning</div>
+    <h1>Order &amp; Chaos</h1>
+    <p class="lead">Learning Order's policy with a Deep Q-Network, action masking and a curriculum of increasingly strong opponents.</p>
+    <div style="margin-top:1em; display:flex; gap:.6em; flex-wrap:wrap">
+      <span class="tag">DQN / Double DQN</span>
+      <span class="tag">Action masking</span>
+      <span class="tag">Curriculum over Chaos</span>
+      <span class="tag">Teacher from the “Order versus Chaos” paper</span>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Roadmap -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Roadmap</div>
+    <h2>What we will cover</h2>
+    <div class="cols2" style="gap:1em 2em">
+      <div class="card accent"><h3>1 · Introduction</h3><span class="muted">The game, why it is a good testbed, research question.</span></div>
+      <div class="card accent"><h3>2 · Idea</h3><span class="muted">Order as the agent, Chaos as the environment, teacher from the paper.</span></div>
+      <div class="card accent"><h3>3 · Theory</h3><span class="muted">MDP, approximate value iteration, DQN, Double DQN, masking, shaping.</span></div>
+      <div class="card accent"><h3>4 · Implementation</h3><span class="muted">Environment, opponents, teacher, network, curriculum, cluster.</span></div>
+      <div class="card accent"><h3>5 · Development</h3><span class="muted">Problems met along the way and how they were solved.</span></div>
+      <div class="card accent"><h3>6 · Results and conclusions</h3><span class="muted">Numbers of the reference run, limitations, work in progress.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. The game -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Introduction</div>
+    <h2>The game: Order and Chaos</h2>
+    <div class="cols-wide-left">
+      <div>
+        <ul>
+          <li><b>6×6</b> board, two players: <b style="color:var(--accent)">Order</b> moves first, then they alternate.</li>
+          <li>On each turn a player picks an empty square and <b>a symbol, X or O</b>: both players use both symbols.</li>
+          <li><b style="color:var(--accent)">Order</b> wins with at least <b>5 identical symbols</b> in a row (horizontal, vertical, diagonal).</li>
+          <li><b style="color:var(--chaos)">Chaos</b> wins if the board fills up with no such line.</li>
+        </ul>
+        <div class="card warn" style="margin-top:1em">
+          <span class="small">In the environment a line of 6 also counts as a win, and if Chaos is the one to complete a line of 5, Order wins (rules of the original game).</span>
+        </div>
+      </div>
+      <div class="center" id="board-intro"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. Why it is interesting -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Introduction</div>
+    <h2>Why it is a good testbed</h2>
+    <div class="cols3">
+      <div class="card accent">
+        <div class="big-num accent">≈1.5·10¹⁷</div>
+        <h3>States</h3>
+        <span class="muted">3³⁶ configurations (empty / X / O on 36 squares): a table is impossible, function approximation is required.</span>
+      </div>
+      <div class="card accent">
+        <div class="big-num accent">72</div>
+        <h3>Actions</h3>
+        <span class="muted">36 squares × 2 symbols, but the legal ones shrink with every move: illegal actions must be handled.</span>
+      </div>
+      <div class="card accent">
+        <div class="big-num accent">Sparse</div>
+        <h3>Reward</h3>
+        <span class="muted">The natural signal only arrives at the end of the game (win / loss).</span>
+      </div>
+    </div>
+    <div class="card ok">
+      <h3>A theoretical reference exists</h3>
+      <span>The paper <i>Order versus Chaos</i> (IEEE CoG 2020) gives a strategy with which <b>Order wins</b> the original game. We can therefore compare what the agent learns with a known winning strategy.</span>
+    </div>
+    <div class="card" style="border-style:dashed">
+      <h3>Research question</h3>
+      <span>Can a DQN agent learn to win as Order against an increasingly defensive Chaos, and how close does it get to the theoretical strategy?</span>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Idea -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Idea</div>
+    <h2>Order learns, Chaos is part of the environment</h2>
+    <div class="flow">
+      <div class="node accent"><b>Order</b><span>DQN agent<br>picks (square, symbol)</span></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>Environment</b><span>applies the move,<br>checks for a win</span></div>
+      <div class="arrow">→</div>
+      <div class="node chaos"><b>Chaos</b><span>random or heuristic<br>(strength β)</span></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>New state + reward</b><span>back to Order</span></div>
+    </div>
+    <div class="cols3" style="margin-top:.4em">
+      <div class="card accent">
+        <h3>1 · Single-agent MDP</h3>
+        <span class="muted">Fixing Chaos' policy turns the game into an MDP for Order: Q-learning can be used.</span>
+      </div>
+      <div class="card accent">
+        <h3>2 · Curriculum</h3>
+        <span class="muted">Start from a random Chaos and raise its defence (β from 0 to 1) over 5 stages.</span>
+      </div>
+      <div class="card accent">
+        <h3>3 · Teacher</h3>
+        <span class="muted">The paper's strategy is a baseline, a small reward bonus and an evaluation reference.</span>
+      </div>
+    </div>
+    <div class="card warn">
+      <span class="small"><b>Consequence:</b> the learned policy is optimal <i>against that Chaos</i>, not against the best possible Chaos. This is why it is compared with the teacher, which wins against any Chaos.</span>
+    </div>
+  </div>
+</section>
+
+<!-- 6. The paper -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Theory · the paper</div>
+    <h2>“Order versus Chaos”: how Order wins</h2>
+    <div class="cols-wide-left">
+      <div>
+        <p class="small muted">van den Bergh, Castelein, van Gent — IEEE CoG 2020, pp. 391–398</p>
+        <ul>
+          <li><b>Border</b> (20 squares, 10 opposite pairs): if Chaos plays on the border, Order answers on the paired square with the <b>opposite symbol</b>.</li>
+          <li><b>4×4 centre</b>: Order plays a strategy that forces a <b>homogeneous line of 4</b> (Lemma IV.3).</li>
+          <li><b>Closing</b>: that line of 4 plus the aligned border pair gives 5 in a row.</li>
+          <li>Inductive step (Lemma IV.4): if Order wins the <i>n×n</i> case with line <i>n</i>, it also wins <i>(n+2)×(n+2)</i> with line <i>n+1</i>.</li>
+        </ul>
+        <div class="legend" style="margin-top:.6em">
+          <span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>4×4 centre</span>
+          <span><i style="background:var(--surface-2)"></i>border</span>
+          <span><i style="background:var(--chaos)"></i>mirroring pairs</span>
+        </div>
+      </div>
+      <div class="center" id="board-pairs"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. MDP -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Theory · formulation</div>
+    <h2>The game as an MDP (S, A, P, R, γ)</h2>
+    <table>
+      <tr><th>Element</th><th>In the project</th></tr>
+      <tr><td><b>State</b> s</td><td>6×6 board with values {0 = empty, 1 = X, 2 = O}; full information → Markovian state</td></tr>
+      <tr><td><b>Action</b> a</td><td>a ∈ {0,…,71}, with <code>a = (6r + c)·2 + (σ − 1)</code>: same square and symbol in every state (fixed-size output)</td></tr>
+      <tr><td><b>Transition</b> P</td><td>Order moves, then Chaos moves: the stochasticity comes from Chaos' policy</td></tr>
+      <tr><td><b>Reward</b> R</td><td>+1 win · −1 loss · small shaping terms (slide 11)</td></tr>
+      <tr><td><b>Discount</b> γ</td><td>0.90 — episodes of at most 18 Order moves</td></tr>
+    </table>
+    <div class="formula"><i>Q</i>*(s,a) = Σ<sub>s′</sub> P(s′|s,a) [ R(s,a,s′) + γ · max<sub>a′</sub> <i>Q</i>*(s′,a′) ] &nbsp;&nbsp;·&nbsp;&nbsp; π*(s) = argmax<sub>a</sub> <i>Q</i>*(s,a)</div>
+    <span class="small muted">Bellman optimality equation: the optimal policy is greedy with respect to Q*.</span>
+  </div>
+</section>
+
+<!-- 8. Approximate value iteration and DQN -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Theory · from the model to samples</div>
+    <h2>Approximate value iteration → DQN</h2>
+    <div class="cols2">
+      <div>
+        <h3>Value iteration (known model)</h3>
+        <div class="formula"><i>Q</i><sub>k+1</sub> = <i>T</i> <i>Q</i><sub>k</sub> &nbsp; with &nbsp; (<i>T</i>Q)(s,a) = E[ r + γ max<sub>a′</sub> Q(s′,a′) ]</div>
+        <p class="small muted"><i>T</i> is a contraction in the ∞-norm with coefficient γ: <i>Q<sub>k</sub></i> → <i>Q*</i>.</p>
+        <p>With 10¹⁷ states a table is impossible. Two things are replaced:</p>
+        <ul>
+          <li>the sum over s′ with <b>samples</b> (s, a, r, s′);</li>
+          <li>the table with a network <b>Q<sub>θ</sub></b> and an L² projection onto the replay-buffer data.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>DQN loss (MSBE)</h3>
+        <div class="formula"><i>L</i>(θ) = E<sub>(s,a,r,s′)∼D</sub> [ ( y − Q<sub>θ</sub>(s,a) )² ]</div>
+        <div class="formula"><i>y</i> = r + γ (1 − done) · max<sub>a′ legal</sub> Q<sub>θ⁻</sub>(s′,a′)</div>
+        <p class="small muted">y is treated as a constant (semi-gradient). θ⁻ are the weights of the <b>target network</b>.</p>
+        <div class="card warn"><span class="small">Q-learning + network + bootstrapping is the “deadly triad” (Sutton &amp; Barto): the replay buffer and the target network serve to stabilise it.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9. DQN ingredients and Double DQN -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Theory · stability and bias</div>
+    <h2>Replay, target network and Double DQN</h2>
+    <div class="cols3">
+      <div class="card accent">
+        <h3>Experience replay</h3>
+        <span class="muted">Transitions stored in a buffer; uniform mini-batches. Breaks the correlation between samples and reuses data.</span>
+      </div>
+      <div class="card accent">
+        <h3>Target network</h3>
+        <span class="muted">Delayed copy of the weights for the target: the target does not move at every step.</span>
+      </div>
+      <div class="card accent">
+        <h3>ε-greedy</h3>
+        <span class="muted">With probability ε a random move among the <b>legal</b> ones, otherwise the greedy one. ε decays per stage.</span>
+      </div>
+    </div>
+    <div class="cols2">
+      <div>
+        <h3>DQN</h3>
+        <div class="formula">y = r + γ · max<sub>a′</sub> Q<sub>θ⁻</sub>(s′,a′)</div>
+        <span class="small muted">The same max chooses and evaluates the action: with noisy estimates E[max] ≥ max E → <b>overestimation</b>.</span>
+      </div>
+      <div>
+        <h3>Double DQN (van Hasselt et al., 2016)</h3>
+        <div class="formula">y = r + γ · Q<sub>θ⁻</sub>( s′, argmax<sub>a′</sub> Q<sub>θ</sub>(s′,a′) )</div>
+        <span class="small muted">The <b>online</b> network chooses, the <b>target</b> evaluates. Almost no extra cost.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10. Action masking -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Theory · illegal actions</div>
+    <h2>Invalid action masking</h2>
+    <div class="cols2">
+      <div class="card chaos">
+        <h3>Baseline: penalise</h3>
+        <p class="small">Move on an occupied square → −1 and end of episode.</p>
+        <span class="muted">In the early phases most samples are wasted on illegal moves and the agent never reaches mid-game positions.</span>
+      </div>
+      <div class="card ok">
+        <h3>Project choice: mask</h3>
+        <p class="small">The environment exposes <code>action_masks()</code> (72 booleans).</p>
+        <span class="muted">Illegal actions are never chosen: 100% of the samples are valid transitions.</span>
+      </div>
+    </div>
+    <h3 style="margin-top:.2em">In Q-learning the mask is applied at two points</h3>
+    <div class="cols2">
+      <div class="formula">a = argmax<sub>a ∈ A(s)</sub> Q<sub>θ</sub>(s,a)<br><span class="small muted">action choice (also ε-greedy)</span></div>
+      <div class="formula">y = r + γ · max<sub>a′ ∈ A(s′)</sub> Q<sub>θ⁻</sub>(s′,a′)<br><span class="small muted">target: every transition stores <code>next_mask</code></span></div>
+    </div>
+    <span class="small muted">Implementation: illegal Q-values are set to −10⁹ (not −∞) to avoid 0·∞ = NaN. For policy-gradient methods the analogue is zeroing the illegal logits before the softmax (Huang &amp; Ontañón).</span>
+  </div>
+</section>
+
+<!-- 11. Shaping and curriculum -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Theory · signal and difficulty</div>
+    <h2>Reward shaping and curriculum</h2>
+    <div class="cols2">
+      <div>
+        <h3>Reward shaping</h3>
+        <p>With a sparse reward and 10¹⁷ states exploration rarely finds a win: intermediate signals are added.</p>
+        <table>
+          <tr><th>Event</th><th class="num">Reward</th></tr>
+          <tr><td>Win</td><td class="num">+1.0</td></tr>
+          <tr><td>Loss (board full)</td><td class="num">−1.0</td></tr>
+          <tr><td>Illegal move</td><td class="num">−1.0</td></tr>
+          <tr><td>Cost per step</td><td class="num">−0.005</td></tr>
+          <tr><td>Line of 3 / of 4 created</td><td class="num">+0.02 / +0.05</td></tr>
+          <tr><td>Move equals the teacher's</td><td class="num">+0.02</td></tr>
+        </table>
+      </div>
+      <div>
+        <div class="card warn">
+          <h3>Caution</h3>
+          <span class="small">Only <i>potential-based</i> shaping preserves optimal policies (Ng et al., 1999). Our terms are not: they are small compared with ±1, but an ablation would be needed to rule out side effects.</span>
+        </div>
+        <div class="card accent" style="margin-top:.8em">
+          <h3>Normalisation to [−1, 1]</h3>
+          <span class="small">With ±100 rewards the loss (MSBE) exploded: with bounded targets the gradients stay bounded too.</span>
+        </div>
+        <div class="card accent" style="margin-top:.8em">
+          <h3>Curriculum (Bengio et al., 2009)</h3>
+          <span class="small">Training on progressively harder tasks: here the difficulty is Chaos' strength, set by β.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12. Environment -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Implementation · environment</div>
+    <h2>OrderAndChaosEnv (<code>src/env.py</code>)</h2>
+    <div class="cols2">
+      <div>
+        <ul>
+          <li>Gymnasium environment: <code>Discrete(72)</code> and observation <code>Box(6×6, int8)</code>.</li>
+          <li><code>action_masks()</code> → 72 booleans (empty squares × 2 symbols).</li>
+          <li><code>step</code>: check legality → Order's move → win? → board full? → intermediate reward → Chaos' move → win / full?</li>
+          <li>The 5-in-a-row check is vectorised with NumPy masks over rows, columns and both diagonals.</li>
+          <li>Rewards are configurable through a dictionary (<code>win_reward</code>, <code>reward_3_in_a_row</code>, …).</li>
+        </ul>
+      </div>
+      <div>
+        <div class="card">
+          <h3>Action encoding</h3>
+          <div class="formula" style="text-align:left">position = a // 2<br>row = position // 6 &nbsp; col = position % 6<br>symbol = (a % 2) + 1 &nbsp;<span class="muted">(1 = X, 2 = O)</span></div>
+          <h3>Network input</h3>
+          <span class="small muted"><code>encode_board</code>: 3 binary channels (empty / X / O), a 3×6×6 tensor.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13. Chaos and teacher -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Implementation · opponent and teacher</div>
+    <h2>Heuristic Chaos and the teacher</h2>
+    <div class="cols2">
+      <div class="card chaos">
+        <h3>Chaos (part of the environment)</h3>
+        <p class="small"><b>Random:</b> uniform among the moves that do not complete a line of 5.</p>
+        <p class="small"><b>Heuristic</b> (with probability β, otherwise random):</p>
+        <ul class="small">
+          <li>blocks a 4-in-a-row with the opposite symbol;</li>
+          <li>spoils the 3-in-a-rows that are still open;</li>
+          <li>otherwise falls back to random.</li>
+        </ul>
+        <p class="small muted">With β = 1 it is practically deterministic: an agent could memorise a line of play.</p>
+      </div>
+      <div class="card ok">
+        <h3>Teacher (<code>src/strategy.py</code>)</h3>
+        <ul class="small">
+          <li><b>Immediate winning move</b> if one exists.</li>
+          <li><b>Extension</b> of an inner line of 4 towards the border.</li>
+          <li><b>Mirror</b> on the 10 border pairs (opposite symbol).</li>
+          <li><b>4×4 centre</b>: the paper's rules + 6 exceptions (Fig. 4) with D4 symmetries and X/O swap.</li>
+        </ul>
+        <p class="small muted">Used for: reward bonus (+0.02), final benchmark, “always wins” reference.</p>
+        <p class="small muted">On the <code>analysis</code> branch the 4×4 centre uses an exact solver instead of the rules (see slide 21).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 14. Network and agent -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Implementation · agent</div>
+    <h2>Convolutional network and MaskedDQNAgent</h2>
+    <div class="flow">
+      <div class="node"><b>Input</b><span>3 × 6 × 6</span></div>
+      <div class="arrow">→</div>
+      <div class="node accent"><b>Conv 3×3</b><span>3 → 64</span></div>
+      <div class="arrow">→</div>
+      <div class="node accent"><b>Conv 3×3</b><span>64 → 128</span></div>
+      <div class="arrow">→</div>
+      <div class="node accent"><b>Conv 3×3</b><span>128 → 128</span></div>
+      <div class="arrow">→</div>
+      <div class="node"><b>FC</b><span>4608 → 256</span></div>
+      <div class="arrow">→</div>
+      <div class="node ok"><b>Q(s,·)</b><span>72 values</span></div>
+    </div>
+    <p class="small muted">ReLU between layers · 1,421,640 parameters · three 3×3 convolutions give a 7×7 receptive field: they cover the whole board.</p>
+    <div class="cols2">
+      <table>
+        <tr><th>Hyperparameter</th><th class="num">Value</th></tr>
+        <tr><td>Optimiser</td><td class="num">Adam</td></tr>
+        <tr><td>Loss</td><td class="num">MSE (MSBE)</td></tr>
+        <tr><td>Batch / buffer</td><td class="num">256 / 100,000</td></tr>
+        <tr><td>γ</td><td class="num">0.90</td></tr>
+      </table>
+      <table>
+        <tr><th>Hyperparameter</th><th class="num">Value</th></tr>
+        <tr><td>Target update</td><td class="num">hard, every 1000 steps</td></tr>
+        <tr><td>Gradient clipping</td><td class="num">norm ≤ 5</td></tr>
+        <tr><td>Exploration</td><td class="num">ε-greedy over legal moves</td></tr>
+        <tr><td>Variant</td><td class="num">DQN / Double DQN</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 15. Curriculum -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Implementation · curriculum</div>
+    <h2>5-stage curriculum: 60,000 episodes</h2>
+    <div class="timeline" id="timeline"></div>
+    <table>
+      <tr><th>Stage</th><th>Chaos</th><th class="num">β</th><th class="num">Episodes</th><th class="num">lr</th><th class="num">ε (start → end)</th></tr>
+      <tr><td>1</td><td>random</td><td class="num">0.00</td><td class="num">8,000</td><td class="num">3·10⁻⁴</td><td class="num">1.00 → 0.05</td></tr>
+      <tr><td>2A</td><td>heuristic</td><td class="num">0.35</td><td class="num">10,000</td><td class="num">2·10⁻⁴</td><td class="num">0.40 → 0.05</td></tr>
+      <tr><td>2B</td><td>heuristic</td><td class="num">0.70</td><td class="num">12,000</td><td class="num">1.5·10⁻⁴</td><td class="num">0.30 → 0.03</td></tr>
+      <tr><td>2C</td><td>heuristic</td><td class="num">0.85</td><td class="num">12,000</td><td class="num">1.2·10⁻⁴</td><td class="num">0.25 → 0.02</td></tr>
+      <tr><td>2D</td><td>heuristic</td><td class="num">1.00</td><td class="num">18,000</td><td class="num">1·10⁻⁴</td><td class="num">0.15 → 0.01</td></tr>
+    </table>
+    <span class="small muted">Each stage restarts from the <b>best</b> weights of the previous stage and from the replay buffer trimmed to the 20,000 most recent samples (reduces distribution lag).</span>
+  </div>
+</section>
+
+<!-- 16. Infrastructure -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Implementation · infrastructure</div>
+    <h2>Environment management and cluster training</h2>
+    <div class="cols2">
+      <div>
+        <ul>
+          <li><b>uv</b> for environment and dependencies (PyTorch from the CUDA 12.6 index on Linux).</li>
+          <li><b>Slurm</b> on the Orfeo cluster: node with a <b>Tesla V100 32 GB</b> GPU, 8 CPUs, 32 GB RAM, 2-hour limit.</li>
+          <li><code>run_curriculum.sh</code> launches the curriculum and logs GPU telemetry (<code>nvidia-smi</code>).</li>
+          <li><code>scripts/sync_to_hpc.sh</code> and <code>sync_from_hpc.sh</code> synchronise code and results with <code>rsync</code>.</li>
+          <li><code>time_test.py</code> measures timings to size the run.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="card ok">
+          <div class="big-num ok">60 min</div>
+          <span class="muted">time of the reference run (60,000 episodes) on one V100: 3,616 s</span>
+        </div>
+        <div class="card chaos" style="margin-top:.8em">
+          <div class="big-num chaos">129 ms</div>
+          <span class="muted">cost of one network update (batch 256) on 8 CPUs, measured with <code>time_test.py</code>. A full run would take about a day without a GPU.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 17. Development -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Development</div>
+    <h2>How we got here</h2>
+    <div class="cols2">
+      <div>
+        <h3>Repository milestones</h3>
+        <ul class="small">
+          <li>Gymnasium environment, 5-in-a-row check, random then heuristic Chaos.</li>
+          <li>Teacher from the paper (mirror + centre rules + exceptions).</li>
+          <li>DQN agent with action masking and benchmark.</li>
+          <li>5-stage curriculum calibrated for a V100 GPU and Slurm scripts.</li>
+          <li>Rewards normalised to [−1, 1] to bound the MSBE.</li>
+          <li>Optional Double DQN and <b>replay-buffer trimming</b> between stages; γ calibrated to 0.90.</li>
+          <li>Model registry of the reference run.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Problems observed (from the run registry)</h3>
+        <div class="card chaos">
+          <span class="small"><b>Loss explosion</b> (MSBE) and <b>representation collapse</b> in stage 2D with the earlier versions.</span>
+        </div>
+        <div class="card ok" style="margin-top:.8em">
+          <span class="small">The reference run, with normalised rewards, γ = 0.90 and the buffer trimmed between stages, removes both and goes from <b>67%</b> (previous job) to <b>83%</b> against the full blocker, with 3.33 fewer moves.</span>
+        </div>
+        <p class="small muted" style="margin-top:.7em">The changes were introduced together: we did not isolate which contributed most (ablation to do).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 18. Results per stage -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Results · reference run (Standard DQN, job 1744434)</div>
+    <h2>Win rate per stage</h2>
+    <div class="center" style="flex:1; min-height:0"><div id="chart-stages" style="width:100%"></div></div>
+    <span class="small muted">Greedy evaluation on 40 games during training (standard error ≈ 4–7 percentage points). The “best” checkpoint is the one with the highest evaluation of the stage, “final” is the last one.</span>
+  </div>
+</section>
+
+<!-- 19. Hold-out -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Results · final hold-out (100 games, greedy)</div>
+    <h2>Benchmark against random Chaos and the blocker</h2>
+    <div class="cols2">
+      <div>
+        <div id="chart-holdout"></div>
+      </div>
+      <div>
+        <table>
+          <tr><th>Opponent</th><th class="num">Win rate</th><th class="num">Moves</th></tr>
+          <tr class="hl"><td>Random</td><td class="num">100%</td><td class="num">7.06 ± 2.12</td></tr>
+          <tr class="hl"><td>Heuristic (β = 1)</td><td class="num">83%</td><td class="num">10.97 ± 3.89</td></tr>
+        </table>
+        <ul class="small" style="margin-top:.9em">
+          <li><b>0 illegal moves</b> in all games.</li>
+          <li>Against random Chaos it takes 7.06 moves on average versus 7.57 for the teacher (of the time): it wins <i>sooner</i>, not more often.</li>
+          <li>The previous job reached 67% against the blocker.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 20. Critical reading -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Results · critical reading</div>
+    <h2>How far to trust these numbers</h2>
+    <div class="cols2">
+      <div class="card warn">
+        <h3>Statistical uncertainty</h3>
+        <span class="small">With 100 games the standard error of an 83% is ≈ 3.8 points: the 95% interval is about [75%, 91%]. With 40 games (training evaluation) it is ≈ 6–7 points.</span>
+      </div>
+      <div class="card warn">
+        <h3>Selection bias</h3>
+        <span class="small">The best stage-2D checkpoint scored 92.5% in the evaluation but 83% in the independent hold-out: picking the maximum of noisy evaluations overestimates.</span>
+      </div>
+      <div class="card warn">
+        <h3>One run, one seed</h3>
+        <span class="small">Run-to-run variability cannot be estimated, nor can DQN and Double DQN be compared.</span>
+      </div>
+      <div class="card warn">
+        <h3>Known, deterministic opponent</h3>
+        <span class="small">Evaluated only against the training Chaos opponents; at β = 1 the heuristic is almost deterministic. Generalisation is not demonstrated.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 21. Teacher discovery -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Recent development · branch <code>analysis</code></div>
+    <h2>The teacher did not always win</h2>
+    <div class="cols3">
+      <div class="card chaos">
+        <div class="big-num chaos">98.9%</div>
+        <span class="small muted">wins of the teacher against the heuristic Chaos (989/1000), despite being the paper's “always winning” strategy</span>
+      </div>
+      <div class="card accent">
+        <div class="big-num accent">16 / 21</div>
+        <span class="small muted">losses (out of 1500 games) in the branch where the 4×4 centre was full with no line of 4 and the teacher had to open a border pair</span>
+      </div>
+      <div class="card ok">
+        <div class="big-num ok">2000/2000</div>
+        <span class="small muted">wins after the fix, against both the heuristic and the random Chaos</span>
+      </div>
+    </div>
+    <div class="cols2">
+      <ul class="small">
+        <li><b>Diagnosis:</b> an <b>exhaustive search</b> on the 4×4 game found a Chaos sequence that fills the centre with no homogeneous line: our transcription of the paper's rules does not force the line.</li>
+        <li>An <b>exact solver</b> (minimax with memoisation) confirms that Order <i>wins</i> the 4×4.</li>
+      </ul>
+      <ul class="small">
+        <li><b>Fix:</b> precomputed table of 112,550 winning positions (0.45 MB), exploiting the 16 symmetries. The teacher plays the paper's move if it is winning, otherwise a winning move from the table.</li>
+        <li><b>Effect:</b> the teacher reward bonus changes, so the old results are indicative.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 22. Rigorous pipeline -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Recent development · branch <code>analysis</code></div>
+    <h2>A more rigorous pipeline for the new runs</h2>
+    <div class="cols2">
+      <div>
+        <ul>
+          <li><b>Seeds</b> (<code>--seed</code>): Python, NumPy, PyTorch and environment resets.</li>
+          <li><b>Fixed-seed evaluation</b> on a separate environment: checkpoints are compared on the same games.</li>
+          <li><b>100 evaluation games</b> (previously 40); at equal win rate the checkpoint with fewer moves wins.</li>
+          <li><b>Stage hand-over</b> with the <i>best</i> checkpoint, documented.</li>
+          <li>Separate outputs: <code>models/&lt;algorithm&gt;_seed&lt;N&gt;/</code>.</li>
+          <li>Determinism tests and a 4×4 verification; <code>CLUSTER_GUIDE.md</code> guide.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="card accent">
+          <h3>Planned experiment</h3>
+          <div class="flow" style="margin:.4em 0">
+            <div class="node"><b>DQN</b><span>seeds 0 · 1 · 2</span></div>
+            <div class="node"><b>Double DQN</b><span>seeds 0 · 1 · 2</span></div>
+          </div>
+          <span class="small muted">6 jobs on the V100, same hyperparameters: only the algorithm and the seed change. Main metric: hold-out win rate against the blocker (mean and standard deviation over seeds).</span>
+        </div>
+        <div class="card warn" style="margin-top:.8em">
+          <span class="small"><b>Status:</b> these runs have not been executed yet; the results will be added here.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 23. Limitations and future work -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Limitations and next steps</div>
+    <h2>What is missing</h2>
+    <div class="cols2">
+      <div>
+        <h3>Current limitations</h3>
+        <ul>
+          <li>Chaos does not learn: no self-play, no guarantee against an optimal Chaos.</li>
+          <li>Teacher bonus and shaping not ablated.</li>
+          <li>No unseen opponents in the evaluation.</li>
+          <li>Reference results from a single seed.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Possible developments</h3>
+        <ul>
+          <li><b>Ablations:</b> teacher on/off, shaping on/off, curriculum vs direct training at β = 1.</li>
+          <li><b>Generalisation:</b> other heuristics, MCTS, perturbed Chaos.</li>
+          <li><b>Efficiency:</b> data augmentation with the game's symmetries (up to 16×), n-step, dueling, prioritised replay.</li>
+          <li><b>Self-play</b> AlphaZero-style (network + MCTS).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 24. Conclusions -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Conclusions</div>
+    <h2>What we achieved</h2>
+    <div class="cols2">
+      <div class="card ok">
+        <h3>Results</h3>
+        <ul class="small">
+          <li>A DQN agent with action masking wins <b>100%</b> against random Chaos and <b>83%</b> against the full blocker, with no illegal moves.</li>
+          <li>The 5-stage curriculum and buffer trimming stabilise training.</li>
+          <li>The teacher was <b>verified and fixed</b>: it now wins 2000/2000.</li>
+        </ul>
+      </div>
+      <div class="card accent">
+        <h3>Lessons</h3>
+        <ul class="small">
+          <li>Normalising rewards matters as much as the algorithm.</li>
+          <li>Evaluate on independent games: the maximum of noisy evaluations is optimistic.</li>
+          <li>Even a strategy “from the paper” must be verified: the exhaustive check found the flaw.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card" style="border-style:dashed">
+      <span><b>Next step:</b> DQN vs Double DQN on 3 seeds with the rigorous pipeline, then ablations and unseen opponents.</span>
+    </div>
+  </div>
+</section>
+
+<!-- 25. References -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">References</div>
+    <h2>Essential bibliography</h2>
+    <ul class="small">
+      <li>M. J. H. van den Bergh, S. T. Castelein, D. M. H. van Gent, <i>Order versus Chaos</i>, IEEE CoG 2020, pp. 391–398.</li>
+      <li>R. S. Sutton, A. G. Barto, <i>Reinforcement Learning: An Introduction</i>, 2nd ed., MIT Press, 2018.</li>
+      <li>V. Mnih et al., <i>Human-level control through deep reinforcement learning</i>, Nature 518, 2015.</li>
+      <li>H. van Hasselt, A. Guez, D. Silver, <i>Deep Reinforcement Learning with Double Q-learning</i>, AAAI 2016.</li>
+      <li>C. Watkins, P. Dayan, <i>Q-learning</i>, Machine Learning 8, 1992.</li>
+      <li>A. Y. Ng, D. Harada, S. Russell, <i>Policy invariance under reward transformations</i>, ICML 1999.</li>
+      <li>Y. Bengio et al., <i>Curriculum learning</i>, ICML 2009.</li>
+      <li>S. Huang, S. Ontañón, <i>A closer look at invalid action masking in policy gradient algorithms</i>, FLAIRS 2022.</li>
+      <li>D. Kingma, J. Ba, <i>Adam: a method for stochastic optimization</i>, ICLR 2015.</li>
+    </ul>
+    <p class="small muted">More detail and exam questions: <code>THEORY.md</code> in the repository (Italian version: <code>THEORY.it.md</code>).</p>
+  </div>
+</section>
+
+</main>
+
+<div class="chrome">
+  <span id="counter">1 / 25</span>
+  <span class="hint">← → navigate · F fullscreen · T theme</span>
+  <span><button class="nav-btn" id="prev" aria-label="Previous slide">←</button> <button class="nav-btn" id="next" aria-label="Next slide">→</button></span>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- helpers ---------- */
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function svgEl(tag, attrs, parent) {
+    var el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    Object.keys(attrs || {}).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+    if (parent) parent.appendChild(el);
+    return el;
+  }
+
+  /* ---------- 6x6 board diagram ---------- */
+  function drawBoard(target, opts) {
+    var cell = 56, n = 6, size = cell * n, pad = 14;
+    var svg = svgEl("svg", {
+      viewBox: "0 0 " + (size + 2 * pad) + " " + (size + 2 * pad),
+      width: "100%", role: "img", "aria-label": opts.label
+    });
+    svg.style.maxWidth = "min(30em, 100%)";
+    svg.style.maxHeight = "58vh";
+    var g = svgEl("g", { transform: "translate(" + pad + "," + pad + ")" }, svg);
+    var winSet = {};
+    (opts.win || []).forEach(function (rc) { winSet[rc[0] + "," + rc[1]] = true; });
+    for (var r = 0; r < n; r++) {
+      for (var c = 0; c < n; c++) {
+        var inner = r >= 1 && r <= 4 && c >= 1 && c <= 4;
+        var fill = opts.showInner ? (inner ? "var(--accent-soft)" : "var(--surface-2)") : "var(--surface)";
+        if (winSet[r + "," + c]) fill = "var(--ok-soft)";
+        svgEl("rect", {
+          x: c * cell, y: r * cell, width: cell, height: cell, fill: fill,
+          stroke: winSet[r + "," + c] ? "var(--ok)" : "var(--line)", "stroke-width": winSet[r + "," + c] ? 2 : 1
+        }, g);
+      }
+    }
+    if (opts.showInner) {
+      svgEl("rect", { x: cell, y: cell, width: 4 * cell, height: 4 * cell, fill: "none", stroke: "var(--accent)", "stroke-width": 2.5 }, g);
+    }
+    if (opts.pairs) {
+      var half = cell / 2, pairs = [];
+      for (var i = 1; i <= 4; i++) {
+        pairs.push([[i, 0], [i, 5]]);
+        pairs.push([[0, i], [5, i]]);
+      }
+      pairs.push([[0, 0], [5, 5]]);
+      pairs.push([[0, 5], [5, 0]]);
+      pairs.forEach(function (p) {
+        var a = p[0], b = p[1];
+        var ax = a[1] * cell + half, ay = a[0] * cell + half, bx = b[1] * cell + half, by = b[0] * cell + half;
+        svgEl("line", { x1: ax, y1: ay, x2: bx, y2: by, stroke: "var(--chaos)", "stroke-width": 1.6, "stroke-dasharray": "5 4", opacity: .75 }, g);
+        [[ax, ay], [bx, by]].forEach(function (pt) { svgEl("circle", { cx: pt[0], cy: pt[1], r: 5, fill: "var(--chaos)" }, g); });
+      });
+    }
+    (opts.symbols || []).forEach(function (s) {
+      var t = svgEl("text", {
+        x: s[1] * cell + cell / 2, y: s[0] * cell + cell / 2 + 9,
+        "text-anchor": "middle", "font-size": 28, "font-weight": 700,
+        fill: s[2] === "X" ? "var(--ink)" : "var(--muted)"
+      }, g);
+      t.textContent = s[2];
+    });
+    target.appendChild(svg);
+  }
+
+  var introSymbols = [
+    [1, 1, "X"], [2, 2, "X"], [3, 3, "X"], [4, 4, "X"], [5, 5, "X"],
+    [0, 2, "O"], [1, 4, "O"], [2, 0, "X"], [3, 1, "O"], [4, 2, "O"], [2, 4, "O"], [5, 0, "O"], [0, 5, "X"]
+  ];
+  drawBoard(document.getElementById("board-intro"), {
+    label: "Example 6 by 6 board with five X in a diagonal line",
+    symbols: introSymbols,
+    win: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]
+  });
+  drawBoard(document.getElementById("board-pairs"), {
+    label: "6 by 6 board: 4 by 4 centre and ten pairs of border squares",
+    showInner: true, pairs: true, symbols: []
+  });
+
+  /* ---------- curriculum timeline ---------- */
+  (function () {
+    var stages = [
+      { n: "1", b: "β 0.00", e: 8000, c: "#3f7cf4" },
+      { n: "2A", b: "β 0.35", e: 10000, c: "#5a6bd8" },
+      { n: "2B", b: "β 0.70", e: 12000, c: "#8b5cc4" },
+      { n: "2C", b: "β 0.85", e: 12000, c: "#c0508d" },
+      { n: "2D", b: "β 1.00", e: 18000, c: "#d9482b" }
+    ];
+    var total = stages.reduce(function (s, x) { return s + x.e; }, 0);
+    var root = document.getElementById("timeline");
+    stages.forEach(function (s) {
+      var d = document.createElement("div");
+      d.style.width = (100 * s.e / total) + "%";
+      d.style.background = s.c;
+      d.innerHTML = "<span>" + s.n + "</span><span style='font-weight:500;opacity:.9'>" + s.b + "</span>";
+      root.appendChild(d);
+    });
+  })();
+
+  /* ---------- bar charts ---------- */
+  function groupedBars(target, cfg) {
+    var W = 900, H = 380, m = { l: 56, r: 20, t: 20, b: 64 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": cfg.label }, null);
+    svg.style.maxHeight = "52vh";
+    for (var v = 0; v <= 100; v += 25) {
+      var y = m.t + ih - ih * v / 100;
+      svgEl("line", { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: "var(--line)", "stroke-width": 1 }, svg);
+      var t = svgEl("text", { x: m.l - 10, y: y + 5, "text-anchor": "end", "font-size": 15, fill: "var(--muted)" }, svg);
+      t.textContent = v + "%";
+    }
+    var gw = iw / cfg.categories.length;
+    var bw = Math.min(54, gw / (cfg.series.length + 1));
+    cfg.categories.forEach(function (cat, i) {
+      var cx = m.l + gw * i + gw / 2;
+      var lab = svgEl("text", { x: cx, y: H - m.b + 24, "text-anchor": "middle", "font-size": 16, fill: "var(--ink)", "font-weight": 600 }, svg);
+      lab.textContent = cat;
+      cfg.series.forEach(function (s, j) {
+        var val = s.values[i];
+        var x = cx + (j - (cfg.series.length - 1) / 2) * (bw + 6) - bw / 2;
+        var h = ih * val / 100;
+        svgEl("rect", { x: x, y: m.t + ih - h, width: bw, height: h, rx: 4, fill: s.color }, svg);
+        var vt = svgEl("text", { x: x + bw / 2, y: m.t + ih - h - 7, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, svg);
+        vt.textContent = (val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)) + "%";
+      });
+    });
+    target.appendChild(svg);
+    var lg = document.createElement("div");
+    lg.className = "legend";
+    lg.style.justifyContent = "center";
+    lg.style.marginTop = ".5em";
+    cfg.series.forEach(function (s) {
+      var sp = document.createElement("span");
+      sp.innerHTML = "<i style='background:" + s.color + "'></i>" + s.name;
+      lg.appendChild(sp);
+    });
+    target.appendChild(lg);
+  }
+
+  groupedBars(document.getElementById("chart-stages"), {
+    label: "Win rate of the best and of the final checkpoint for each stage",
+    categories: ["1 · Random", "2A · β 0.35", "2B · β 0.70", "2C · β 0.85", "2D · β 1.00"],
+    series: [
+      { name: "best checkpoint", color: "var(--accent)", values: [100, 100, 92.5, 95, 92.5] },
+      { name: "final checkpoint", color: "var(--chaos)", values: [100, 97.5, 80, 70, 82.5] }
+    ]
+  });
+
+  (function () {
+    var rows = [
+      { name: "Reference run vs Random", v: 100, c: "var(--accent)" },
+      { name: "Reference run vs Blocker (β = 1)", v: 83, c: "var(--accent)" },
+      { name: "Previous job vs Blocker (β = 1)", v: 67, c: "var(--muted)" }
+    ];
+    var root = document.getElementById("chart-holdout");
+    rows.forEach(function (r) {
+      var wrap = document.createElement("div");
+      wrap.style.marginBottom = ".9em";
+      wrap.innerHTML =
+        "<div class='small' style='margin-bottom:.2em'>" + r.name + "</div>" +
+        "<div style='display:flex;align-items:center;gap:.6em'>" +
+        "<div style='flex:1;background:var(--surface-2);border-radius:.4em;height:1.5em;overflow:hidden'>" +
+        "<div style='width:" + r.v + "%;height:100%;background:" + r.c + ";border-radius:.4em'></div></div>" +
+        "<b style='min-width:3em;text-align:right'>" + r.v + "%</b></div>";
+      root.appendChild(wrap);
+    });
+    var note = document.createElement("div");
+    note.className = "small muted";
+    note.textContent = "100 greedy games per opponent. Previous job: job 1742771, as recorded in the model registry.";
+    root.appendChild(note);
+  })();
+
+  /* ---------- navigation ---------- */
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var counter = document.getElementById("counter");
+  var progress = document.getElementById("progress");
+  var current = 0;
+
+  function show(i) {
+    current = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach(function (s, k) { s.classList.toggle("active", k === current); });
+    counter.textContent = (current + 1) + " / " + slides.length;
+    progress.style.width = (100 * (current + 1) / slides.length) + "%";
+    try { history.replaceState(null, "", "#" + (current + 1)); } catch (e) { /* ignore */ }
+  }
+  function fromHash() {
+    var n = parseInt((location.hash || "").replace("#", ""), 10);
+    show(isNaN(n) ? 0 : n - 1);
+  }
+
+  document.getElementById("prev").addEventListener("click", function () { show(current - 1); });
+  document.getElementById("next").addEventListener("click", function () { show(current + 1); });
+  window.addEventListener("hashchange", fromHash);
+  window.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    switch (e.key) {
+      case "ArrowRight": case "PageDown": case " ": case "Enter": e.preventDefault(); show(current + 1); break;
+      case "ArrowLeft": case "PageUp": case "Backspace": e.preventDefault(); show(current - 1); break;
+      case "Home": show(0); break;
+      case "End": show(slides.length - 1); break;
+      case "f": case "F":
+        try {
+          if (document.fullscreenElement) document.exitFullscreen();
+          else document.documentElement.requestFullscreen();
+        } catch (err) { /* ignore */ }
+        break;
+      case "t": case "T": {
+        var root = document.documentElement;
+        var dark = css("color-scheme") === "dark";
+        root.setAttribute("data-theme", dark ? "light" : "dark");
+        break;
+      }
+    }
+  });
+  var touchX = null;
+  window.addEventListener("touchstart", function (e) { touchX = e.touches[0].clientX; }, { passive: true });
+  window.addEventListener("touchend", function (e) {
+    if (touchX === null) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) show(current + (dx < 0 ? 1 : -1));
+    touchX = null;
+  }, { passive: true });
+
+  counter.textContent = "1 / " + slides.length;
+  fromHash();
+})();
+</script>
+</body>
+</html>

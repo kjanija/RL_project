@@ -10,7 +10,8 @@ Sequences the 5-stage curriculum automatically:
   5. Stage 2D (Full Blocker)        : chaos_mode="heuristic", beta=1.00, 1500 ep, lr=1e-4,   eps: 0.15 -> 0.01 (decay 0.998)
 
 Key Architectural & Training Features:
-  - Replay Buffer Inheritance: Retains active replay buffer across stages to prevent cold-start amnesia.
+  - Stage handoff: each stage starts from the previous stage's *_best.pt weights (best = highest eval
+    win rate, ties broken by fewer moves) with a trimmed replay buffer.
   - Increased Batch Size: Defaults to 128 for CPU vectorization and variance reduction.
   - Comprehensive Logging: Outputs metrics CSV and JSON files for each stage.
   - Automated Final Holdout Benchmark: 100-game greedy holdout vs Random Chaos and 100% Heuristic Chaos,
@@ -20,6 +21,7 @@ Key Architectural & Training Features:
 import argparse
 import json
 from pathlib import Path
+import random
 import sys
 import time
 from typing import Dict, List, Optional
@@ -94,18 +96,32 @@ CURRICULUM_STAGES = [
 ]
 
 
+def set_global_seed(seed: int) -> None:
+    """Seeds python, numpy and torch RNGs (epsilon-greedy, buffer sampling, init)."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 def evaluate_greedy(
-    agent: MaskedDQNAgent, env: OrderAndChaosEnv, num_episodes: int = 40
+    agent: MaskedDQNAgent,
+    env: OrderAndChaosEnv,
+    num_episodes: int = 100,
+    seed_base: int = 0,
 ) -> Dict[str, float]:
     """
     Evaluates agent greedily (epsilon=0) over num_episodes.
+    Episode i resets the env with seed seed_base + i, so every checkpoint is
+    evaluated on the same Chaos randomness (lower-variance checkpoint comparison).
     """
     wins = 0
     total_rewards = []
     total_lengths = []
 
-    for _ in range(num_episodes):
-        obs, _ = env.reset()
+    for i in range(num_episodes):
+        obs, _ = env.reset(seed=seed_base + i)
         done = False
         ep_reward = 0.0
         moves = 0
@@ -136,9 +152,10 @@ def run_agent_holdout_benchmark(
     chaos_mode: str,
     chaos_defense_prob: float = 1.0,
     num_episodes: int = 100,
+    seed_base: int = 1_000_000,
 ) -> Dict[str, float]:
     """
-    Runs greedy evaluation for final holdout testing.
+    Runs greedy evaluation for final holdout testing (fixed per-episode seeds).
     """
     env = OrderAndChaosEnv(
         config={"chaos_mode": chaos_mode, "chaos_defense_prob": chaos_defense_prob}
@@ -148,8 +165,8 @@ def run_agent_holdout_benchmark(
     rewards_list = []
     illegal_moves = 0
 
-    for _ in range(num_episodes):
-        obs, _ = env.reset()
+    for i in range(num_episodes):
+        obs, _ = env.reset(seed=seed_base + i)
         done = False
         ep_moves = 0
         ep_reward = 0.0
@@ -188,6 +205,7 @@ def run_teacher_holdout_benchmark(
     chaos_mode: str,
     chaos_defense_prob: float = 1.0,
     num_episodes: int = 100,
+    seed_base: int = 1_000_000,
 ) -> Dict[str, float]:
     """
     Runs holdout benchmark for optimal theoretical Teacher policy.
@@ -198,8 +216,8 @@ def run_teacher_holdout_benchmark(
     wins = 0
     moves_list = []
 
-    for _ in range(num_episodes):
-        obs, _ = env.reset()
+    for i in range(num_episodes):
+        obs, _ = env.reset(seed=seed_base + i)
         done = False
         moves = 0
         while not done:
@@ -229,6 +247,7 @@ def print_and_save_benchmark_summary(
     agent: MaskedDQNAgent,
     holdout_episodes: int,
     output_dir: Path,
+    seed: int = 0,
 ) -> Dict[str, dict]:
     """
     Runs holdout benchmarks and prints comparison table with Teacher.
@@ -289,6 +308,7 @@ def print_and_save_benchmark_summary(
     print("=" * 76 + "\n")
 
     benchmark_results = {
+        "seed": seed,
         "holdout_episodes": holdout_episodes,
         "dqn_vs_random": dqn_random,
         "dqn_vs_heuristic_100": dqn_heuristic,
@@ -323,11 +343,14 @@ def run_curriculum(args):
     print(f"Buffer Capacity      : {args.buffer_capacity}")
     print(f"Buffer Trim Size     : {args.buffer_trim_size}")
     print(f"Discount Factor Gamma: {args.gamma}")
+    print(f"Seed                 : {args.seed}")
     print(f"Output Directory     : {output_dir.resolve()}")
     print(f"Quick Test Mode      : {args.quick_test}")
     print(f"Eval Interval        : {eval_interval} eps (eval count: {eval_episodes})")
     print(f"Final Holdout Games  : {holdout_episodes}")
     print("=" * 76 + "\n")
+
+    set_global_seed(args.seed)
 
     # 1. Instantiate shared MaskedDQNAgent
     agent = MaskedDQNAgent(
@@ -414,6 +437,9 @@ def run_curriculum(args):
             "teacher_reward": 0.02,
         }
         env = OrderAndChaosEnv(config=env_config)
+        # Separate evaluation env: evaluation never consumes the training env's RNG.
+        eval_env = OrderAndChaosEnv(config=env_config)
+        env.reset(seed=args.seed + stage_idx)
 
         # File paths for stage outputs
         best_model_path = output_dir / f"order_dqn_{stage_id}_best.pt"
@@ -429,7 +455,7 @@ def run_curriculum(args):
 
         history = []
         epsilon = eps_start
-        best_win_rate = -1.0
+        best_key = (-1.0, float("-inf"))  # (win_rate, -mean_moves): ties go to faster wins
         stage_start_time = time.time()
 
         for ep in range(1, episodes + 1):
@@ -465,7 +491,10 @@ def run_curriculum(args):
             # Evaluation check
             if ep % eval_interval == 0 or ep == episodes:
                 eval_metrics = evaluate_greedy(
-                    agent, env, num_episodes=eval_episodes
+                    agent,
+                    eval_env,
+                    num_episodes=eval_episodes,
+                    seed_base=args.seed * 1000,
                 )
                 mean_loss = float(np.mean(ep_losses)) if ep_losses else 0.0
 
@@ -502,12 +531,13 @@ def run_curriculum(args):
                     f"Buf: {len(agent.replay_buffer)}"
                 )
 
-                if eval_metrics["win_rate"] > best_win_rate:
-                    best_win_rate = eval_metrics["win_rate"]
+                key = (eval_metrics["win_rate"], -eval_metrics["mean_moves"])
+                if key > best_key:
+                    best_key = key
                     agent.save(str(best_model_path))
                     print(
                         f"  ==> New stage best model saved to {best_model_path.name} "
-                        f"(Win Rate: {best_win_rate * 100:.1f}%)"
+                        f"(Win Rate: {key[0] * 100:.1f}%, Moves: {-key[1]:.1f})"
                     )
 
         # Fallback: ensure best_model_path exists even if best_win_rate was 0.0
@@ -531,6 +561,7 @@ def run_curriculum(args):
         agent=agent,
         holdout_episodes=holdout_episodes,
         output_dir=output_dir,
+        seed=args.seed,
     )
     print("Curriculum pipeline completed successfully!")
 
@@ -601,14 +632,20 @@ def main():
     parser.add_argument(
         "--eval_episodes",
         type=int,
-        default=40,
-        help="Number of episodes per evaluation run",
+        default=100,
+        help="Number of episodes per evaluation run (default: 100; 40 gives ~+-6%% noise)",
     )
     parser.add_argument(
         "--holdout_episodes",
         type=int,
         default=100,
         help="Number of holdout games for final evaluation vs Random/Heuristic/Teacher",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Seed for python/numpy/torch RNGs and the environments (default: 0)",
     )
     parser.add_argument(
         "--initial_checkpoint",

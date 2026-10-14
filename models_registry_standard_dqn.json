@@ -171,7 +171,7 @@
       "final_eval_mean_moves": 11.6,
       "mean_msbe_loss": 0.0011,
       "empty_board_q_value": 0.495,
-      "description": "Final checkpoint from Stage 2C. Serves as the bootstrapping foundation for entering the Stage 2D Full Blocker curriculum."
+      "description": "Final checkpoint from Stage 2C. Final snapshot of Stage 2C (note: the curriculum runner hands over each stage's best checkpoint, not its final one, to the next stage)."
     },
     "models/order_dqn_stage2d_full_best.pt": {
       "backup_path": "backups/standard_dqn_1744434/models/order_dqn_stage2d_full_best.pt",

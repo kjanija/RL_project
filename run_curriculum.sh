@@ -99,18 +99,40 @@ trap cleanup EXIT INT TERM
 log "INFO" "Syncing Python virtual environment with uv..."
 uv sync
 
-log "INFO" "Launching 5-Stage Curriculum Training on V100 GPU (Double DQN)..."
+# The teacher relies on the solved 4x4 table; without it the (non-winning) heuristic
+# would be used silently, so rebuild the table if it was not synced.
+if [ ! -f src/data/inner_win_table.npy ]; then
+  log "WARN" "src/data/inner_win_table.npy is missing; building it (about 2 minutes)..."
+  uv run python src/inner_solver.py --build
+fi
+
+# Usage: [SEED=0] [ALGO=ddqn|dqn] sbatch run_curriculum.sh
+SEED="${SEED:-0}"
+ALGO="${ALGO:-ddqn}"
+case "${ALGO}" in
+  ddqn) ALGO_FLAGS=(--double_dqn) ;;
+  dqn)  ALGO_FLAGS=() ;;
+  *)
+    log "ERROR" "ALGO must be 'ddqn' or 'dqn' (got '${ALGO}')"
+    exit 1
+    ;;
+esac
+OUTPUT_DIR="models/${ALGO}_seed${SEED}"
+log "INFO" "Algorithm: ${ALGO} | Seed: ${SEED} | Output: ${OUTPUT_DIR}"
+
+log "INFO" "Launching 5-Stage Curriculum Training on V100 GPU..."
 uv run python src/run_curriculum.py \
   --device cuda \
-  --double_dqn \
+  ${ALGO_FLAGS[@]+"${ALGO_FLAGS[@]}"} \
   --batch_size 256 \
   --buffer_capacity 100000 \
   --buffer_trim_size 20000 \
   --gamma 0.90 \
   --target_update_freq 1000 \
   --eval_interval 500 \
-  --eval_episodes 40 \
+  --eval_episodes 100 \
   --holdout_episodes 100 \
-  --output_dir models
+  --seed "${SEED}" \
+  --output_dir "${OUTPUT_DIR}"
 
-log "INFO" "Training completed. All checkpoints and logs saved to models/."
+log "INFO" "Training completed. All checkpoints and logs saved to ${OUTPUT_DIR}/."

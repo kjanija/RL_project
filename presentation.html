@@ -473,7 +473,7 @@ svg text { font-family: inherit; }
         </div>
         <div class="card accent" style="margin-top:.8em">
           <h3>Normalisation to [−1, 1]</h3>
-          <span class="small">With ±100 rewards the loss (MSBE) exploded: with bounded targets the gradients stay bounded too.</span>
+          <span class="small">With ±100 rewards the loss (MSBE) exploded: with bounded targets the gradients stay bounded too.<br><b>Cluster data:</b> Job 1742771 (±100) peaked at <b>441,858</b> MSBE loss; reference run ([−1, 1]) stayed bounded at <b>≤ 0.0022</b> (&gt; 10⁸× reduction).</span>
         </div>
         <div class="card accent" style="margin-top:.8em">
           <h3>Curriculum (Bengio et al., 2009)</h3>
@@ -537,7 +537,7 @@ svg text { font-family: inherit; }
           <li><b>4×4 centre</b>: the paper's rules + 6 exceptions (Fig. 4) with D4 symmetries and X/O swap.</li>
         </ul>
         <p class="small muted">Used for: reward bonus (+0.02), final benchmark, “always wins” reference.</p>
-        <p class="small muted">On the <code>analysis</code> branch the 4×4 centre uses an exact solver instead of the rules (see slide 21).</p>
+        <p class="small muted">On the <code>analysis</code> branch the 4×4 centre uses an exact solver instead of the rules (see slide 23).</p>
       </div>
     </div>
   </div>
@@ -670,7 +670,67 @@ svg text { font-family: inherit; }
   </div>
 </section>
 
-<!-- 19. Hold-out -->
+<!-- 19. Learning dynamics: MSBE Loss -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Results · learning dynamics (reference run, job 1744434)</div>
+    <h2>Value loss stability (MSBE) across the curriculum</h2>
+    <div class="cols-wide-left" style="align-items:stretch">
+      <div class="card" style="display:flex; flex-direction:column; justify-content:center">
+        <div id="chart-loss" style="width:100%"></div>
+        <span class="small muted" style="margin-top:.4em">Mean Squared Bellman Error evaluated every 500 episodes across all 5 stages (60,000 total episodes). Bounded between 0.0003 and 0.0022 throughout.</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:.8em">
+        <div class="card chaos">
+          <div class="kicker" style="color:var(--chaos)">Job 1742771 (±100 unnormalised)</div>
+          <div class="big-num chaos">441,858</div>
+          <span class="small muted">Peak MSBE loss (divergence). Mean loss in Stage 1 was <b>63,211</b>. Gradients exploded without bounded targets.</span>
+        </div>
+        <div class="card ok">
+          <div class="kicker" style="color:var(--ok)">Job 1744434 (reference [−1, 1])</div>
+          <div class="big-num ok">0.0022</div>
+          <span class="small muted">Peak MSBE loss (&gt; 10⁸× reduction). Mean loss across the entire curriculum is <b>0.0009</b>: completely stable.</span>
+        </div>
+        <div class="card">
+          <h3>Why normalisation worked</h3>
+          <span class="small">With rewards in [−1, 1] and γ = 0.90, the optimal Q-values are bounded by |Q*| ≤ R_max / (1 − γ) = 10. The Bellman error cannot blow up.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 20. Learning dynamics: Reward and moves -->
+<section class="slide">
+  <div class="body">
+    <div class="kicker">Results · learning dynamics (reference run, job 1744434)</div>
+    <h2>Evaluation reward and move efficiency per episode</h2>
+    <div class="cols-wide-left" style="align-items:stretch">
+      <div class="card" style="display:flex; flex-direction:column; justify-content:center">
+        <div id="chart-reward-moves" style="width:100%"></div>
+        <span class="small muted" style="margin-top:.4em">Greedy evaluation on 40 games per checkpoint (ε = 0). Left axis: Mean episodic reward (green). Right axis: Average game length in moves (orange).</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:.8em">
+        <div class="card ok">
+          <div class="kicker" style="color:var(--ok)">Efficiency in Stage 1</div>
+          <div class="big-num ok">4.8 moves</div>
+          <span class="small muted">Average moves drop from <b>13.0 to 4.8</b> as Order learns rapid 5-move winning lines against random Chaos (eval reward reaches <b>+1.08</b>).</span>
+        </div>
+        <div class="card accent">
+          <div class="kicker" style="color:var(--accent)">Adaptation to Blocker</div>
+          <div class="big-num accent">+0.84</div>
+          <span class="small muted">Sustained mean reward against the 100% blocker (Stage 2D). Game length stabilizes around <b>10.6 moves</b>, creating unstoppable double-forks.</span>
+        </div>
+        <div class="card">
+          <h3>Teacher comparison</h3>
+          <span class="small">Against random Chaos, the DQN wins faster than the theoretical teacher (<b>7.06 vs 7.57</b> moves in holdout), maximizing discounted return.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 21. Hold-out -->
 <section class="slide">
   <div class="body">
     <div class="kicker">Results · final hold-out (100 games, greedy)</div>
@@ -695,7 +755,7 @@ svg text { font-family: inherit; }
   </div>
 </section>
 
-<!-- 20. Critical reading -->
+<!-- 22. Critical reading -->
 <section class="slide">
   <div class="body">
     <div class="kicker">Results · critical reading</div>
@@ -721,7 +781,7 @@ svg text { font-family: inherit; }
   </div>
 </section>
 
-<!-- 21. Teacher discovery -->
+<!-- 23. Teacher discovery -->
 <section class="slide">
   <div class="body">
     <div class="kicker">Recent development · branch <code>analysis</code></div>
@@ -753,7 +813,7 @@ svg text { font-family: inherit; }
   </div>
 </section>
 
-<!-- 22. Rigorous pipeline -->
+<!-- 24. Rigorous pipeline -->
 <section class="slide">
   <div class="body">
     <div class="kicker">Recent development · branch <code>analysis</code></div>
@@ -786,7 +846,7 @@ svg text { font-family: inherit; }
   </div>
 </section>
 
-<!-- 23. Limitations and future work -->
+<!-- 25. Limitations and future work -->
 <section class="slide">
   <div class="body">
     <div class="kicker">Limitations and next steps</div>
@@ -814,7 +874,7 @@ svg text { font-family: inherit; }
   </div>
 </section>
 
-<!-- 24. Conclusions -->
+<!-- 26. Conclusions -->
 <section class="slide">
   <div class="body">
     <div class="kicker">Conclusions</div>
@@ -843,7 +903,7 @@ svg text { font-family: inherit; }
   </div>
 </section>
 
-<!-- 25. References -->
+<!-- 27. References -->
 <section class="slide">
   <div class="body">
     <div class="kicker">References</div>
@@ -866,7 +926,7 @@ svg text { font-family: inherit; }
 </main>
 
 <div class="chrome">
-  <span id="counter">1 / 25</span>
+  <span id="counter">1 / 27</span>
   <span class="hint">← → navigate · F fullscreen · T theme</span>
   <span><button class="nav-btn" id="prev" aria-label="Previous slide">←</button> <button class="nav-btn" id="next" aria-label="Next slide">→</button></span>
 </div>
@@ -1018,6 +1078,204 @@ svg text { font-family: inherit; }
       { name: "final checkpoint", color: "var(--chaos)", values: [100, 97.5, 80, 70, 82.5] }
     ]
   });
+
+  var CURRICULUM_STAGES = [{"name": "Stage 1 (Random)", "tag": "1 \u00b7 Random", "ep": 8000, "start": 0, "end": 8000, "color": "#3f7cf4"}, {"name": "Stage 2A (\u03b2 0.35)", "tag": "2A \u00b7 \u03b2 0.35", "ep": 10000, "start": 8000, "end": 18000, "color": "#5a6bd8"}, {"name": "Stage 2B (\u03b2 0.70)", "tag": "2B \u00b7 \u03b2 0.70", "ep": 12000, "start": 18000, "end": 30000, "color": "#8b5cc4"}, {"name": "Stage 2C (\u03b2 0.85)", "tag": "2C \u00b7 \u03b2 0.85", "ep": 12000, "start": 30000, "end": 42000, "color": "#c0508d"}, {"name": "Stage 2D (\u03b2 1.00)", "tag": "2D \u00b7 \u03b2 1.00", "ep": 18000, "start": 42000, "end": 60000, "color": "#d9482b"}];
+  var CURRICULUM_POINTS = [[500, 0, 0.001, 0.86, 12.97], [1000, 0, 0.0007, 0.96, 8.6], [1500, 0, 0.0006, 1.0, 6.22], [2000, 0, 0.0005, 1.05, 6.25], [2500, 0, 0.0004, 1.07, 5.22], [3000, 0, 0.0004, 1.05, 4.88], [3500, 0, 0.0005, 1.08, 5.97], [4000, 0, 0.0004, 1.05, 4.88], [4500, 0, 0.0006, 1.06, 4.9], [5000, 0, 0.0004, 1.07, 4.97], [5500, 0, 0.0004, 1.04, 4.9], [6000, 0, 0.0005, 1.07, 5.05], [6500, 0, 0.0004, 1.07, 5.22], [7000, 0, 0.0003, 1.07, 5.22], [7500, 0, 0.0003, 1.07, 4.97], [8000, 0, 0.0003, 1.07, 5.12], [8500, 1, 0.0015, 0.97, 6.72], [9000, 1, 0.0005, 0.99, 7.1], [9500, 1, 0.0008, 1.01, 7.67], [10000, 1, 0.0005, 1.09, 6.38], [10500, 1, 0.0006, 1.09, 6.4], [11000, 1, 0.0005, 1.04, 6.67], [11500, 1, 0.0012, 1.05, 7.62], [12000, 1, 0.0006, 1.08, 6.33], [12500, 1, 0.0005, 0.94, 7.35], [13000, 1, 0.0007, 0.98, 7.97], [13500, 1, 0.0007, 1.04, 7.15], [14000, 1, 0.0007, 1.04, 7.03], [14500, 1, 0.0007, 1.09, 6.95], [15000, 1, 0.0007, 1.03, 6.6], [15500, 1, 0.0016, 1.09, 6.67], [16000, 1, 0.0016, 1.0, 6.8], [16500, 1, 0.0008, 1.08, 6.15], [17000, 1, 0.0007, 1.08, 6.62], [17500, 1, 0.0008, 1.03, 6.1], [18000, 1, 0.0008, 0.96, 7.65], [18500, 2, 0.0008, 0.65, 10.6], [19000, 2, 0.0008, 0.65, 10.95], [19500, 2, 0.0007, 0.8, 10.3], [20000, 2, 0.0012, 0.93, 8.82], [20500, 2, 0.0012, 0.85, 9.53], [21000, 2, 0.0015, 0.84, 10.85], [21500, 2, 0.0012, 0.76, 9.55], [22000, 2, 0.0022, 0.69, 9.82], [22500, 2, 0.0012, 0.79, 10.72], [23000, 2, 0.0016, 0.89, 9.72], [23500, 2, 0.0012, 0.84, 9.72], [24000, 2, 0.0012, 0.75, 9.65], [24500, 2, 0.0011, 0.91, 9.07], [25000, 2, 0.0011, 0.83, 9.93], [25500, 2, 0.0013, 0.73, 10.1], [26000, 2, 0.0011, 0.72, 10.68], [26500, 2, 0.0013, 0.9, 10.65], [27000, 2, 0.0011, 0.62, 12.57], [27500, 2, 0.0012, 0.64, 11.25], [28000, 2, 0.001, 0.73, 10.22], [28500, 2, 0.0013, 0.72, 11.68], [29000, 2, 0.0011, 0.62, 11.18], [29500, 2, 0.0011, 1.04, 9.45], [30000, 2, 0.0009, 0.66, 10.72], [30500, 3, 0.0008, 0.74, 10.62], [31000, 3, 0.0008, 0.65, 12.5], [31500, 3, 0.0014, 0.86, 10.53], [32000, 3, 0.0013, 0.72, 11.3], [32500, 3, 0.001, 0.79, 10.97], [33000, 3, 0.0012, 0.56, 11.9], [33500, 3, 0.0011, 0.75, 10.85], [34000, 3, 0.0009, 0.99, 10.3], [34500, 3, 0.0011, 0.7, 11.05], [35000, 3, 0.0011, 0.49, 12.2], [35500, 3, 0.0011, 0.67, 11.78], [36000, 3, 0.001, 0.66, 12.12], [36500, 3, 0.0012, 0.44, 12.7], [37000, 3, 0.0011, 0.85, 11.6], [37500, 3, 0.0011, 0.65, 12.05], [38000, 3, 0.0011, 0.71, 11.95], [38500, 3, 0.0012, 0.85, 10.85], [39000, 3, 0.0012, 0.89, 10.97], [39500, 3, 0.0009, 0.6, 11.82], [40000, 3, 0.001, 0.67, 11.5], [40500, 3, 0.0014, 0.91, 11.1], [41000, 3, 0.0008, 0.7, 10.93], [41500, 3, 0.001, 0.94, 10.38], [42000, 3, 0.0013, 0.8, 11.15], [42500, 4, 0.0006, 0.86, 11.0], [43000, 4, 0.0015, 0.59, 12.82], [43500, 4, 0.0011, 0.59, 12.75], [44000, 4, 0.0007, 0.59, 13.18], [44500, 4, 0.0009, 0.67, 11.7], [45000, 4, 0.0011, 0.76, 11.62], [45500, 4, 0.0009, 0.92, 11.8], [46000, 4, 0.0012, 0.61, 11.62], [46500, 4, 0.001, 0.45, 12.95], [47000, 4, 0.0013, 0.67, 11.88], [47500, 4, 0.0009, 0.77, 11.15], [48000, 4, 0.0011, 0.54, 12.72], [48500, 4, 0.0007, 0.57, 12.53], [49000, 4, 0.0021, 0.73, 12.45], [49500, 4, 0.0013, 0.61, 11.8], [50000, 4, 0.001, 0.64, 11.68], [50500, 4, 0.0009, 0.57, 12.45], [51000, 4, 0.0012, 0.78, 11.35], [51500, 4, 0.0011, 0.86, 11.43], [52000, 4, 0.0013, 0.75, 11.35], [52500, 4, 0.0012, 0.82, 11.68], [53000, 4, 0.0008, 0.89, 10.25], [53500, 4, 0.0007, 0.91, 11.15], [54000, 4, 0.0009, 0.41, 12.97], [54500, 4, 0.001, 0.62, 12.25], [55000, 4, 0.0008, 0.79, 10.85], [55500, 4, 0.0009, 0.75, 10.93], [56000, 4, 0.0007, 0.69, 10.65], [56500, 4, 0.0009, 0.99, 10.1], [57000, 4, 0.0008, 0.81, 11.12], [57500, 4, 0.0009, 0.84, 10.3], [58000, 4, 0.0008, 0.86, 10.68], [58500, 4, 0.0008, 0.77, 10.75], [59000, 4, 0.0009, 0.75, 10.97], [59500, 4, 0.0008, 0.84, 10.0], [60000, 4, 0.0008, 0.84, 10.57]];
+
+  function drawLossChart(target) {
+    var W = 800, H = 300, m = { l: 65, r: 20, t: 28, b: 50 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var maxLoss = 0.0025, maxEp = 60000;
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": "MSBE Loss curve across curriculum" }, null);
+    svg.style.maxHeight = "46vh";
+
+    CURRICULUM_STAGES.forEach(function (st, idx) {
+      var x1 = m.l + iw * (st.start / maxEp);
+      var x2 = m.l + iw * (st.end / maxEp);
+      var w = x2 - x1;
+      svgEl("rect", { x: x1, y: m.t, width: w, height: ih, fill: st.color, opacity: idx % 2 === 0 ? "0.06" : "0.02" }, svg);
+      if (idx > 0) {
+        svgEl("line", { x1: x1, x2: x1, y1: m.t, y2: m.t + ih, stroke: "var(--line)", "stroke-width": 1.2, "stroke-dasharray": "4 3" }, svg);
+      }
+      var lab = svgEl("text", { x: x1 + w / 2, y: m.t - 8, "text-anchor": "middle", "font-size": 12, "font-weight": 600, fill: st.color }, svg);
+      lab.textContent = st.tag;
+    });
+
+    for (var v = 0; v <= maxLoss; v += 0.0005) {
+      var y = m.t + ih - ih * (v / maxLoss);
+      svgEl("line", { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: "var(--line)", "stroke-width": 1 }, svg);
+      var t = svgEl("text", { x: m.l - 8, y: y + 4, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, svg);
+      t.textContent = v.toFixed(4);
+    }
+
+    [0, 10000, 20000, 30000, 40000, 50000, 60000].forEach(function (ep) {
+      var x = m.l + iw * (ep / maxEp);
+      var tx = svgEl("text", { x: x, y: m.t + ih + 18, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, svg);
+      tx.textContent = (ep / 1000).toFixed(0) + "k";
+    });
+    var xLab = svgEl("text", { x: m.l + iw / 2, y: m.t + ih + 38, "text-anchor": "middle", "font-size": 12, "font-weight": 600, fill: "var(--muted)" }, svg);
+    xLab.textContent = "Training episode (continuous across 5 stages)";
+
+    var pathStr = "";
+    CURRICULUM_POINTS.forEach(function (p, i) {
+      var x = m.l + iw * (p[0] / maxEp);
+      var y = m.t + ih - ih * Math.min(maxLoss, p[2]) / maxLoss;
+      pathStr += (i === 0 ? "M " : " L ") + x.toFixed(1) + " " + y.toFixed(1);
+    });
+    var areaStr = pathStr + " L " + (m.l + iw).toFixed(1) + " " + (m.t + ih).toFixed(1) + " L " + m.l.toFixed(1) + " " + (m.t + ih).toFixed(1) + " Z";
+
+    var defs = svgEl("defs", {}, svg);
+    var grad = svgEl("linearGradient", { id: "lossGrad", x1: "0", y1: "0", x2: "0", y2: "1" }, defs);
+    svgEl("stop", { offset: "0%", "stop-color": "var(--accent)", "stop-opacity": "0.30" }, grad);
+    svgEl("stop", { offset: "100%", "stop-color": "var(--accent)", "stop-opacity": "0.0" }, grad);
+
+    svgEl("path", { d: areaStr, fill: "url(#lossGrad)" }, svg);
+    svgEl("path", { d: pathStr, fill: "none", stroke: "var(--accent)", "stroke-width": 2.2 }, svg);
+
+    var refY = m.t + ih - ih * (0.0009 / maxLoss);
+    svgEl("line", { x1: m.l, x2: W - m.r, y1: refY, y2: refY, stroke: "var(--accent)", "stroke-width": 1, "stroke-dasharray": "2 3", opacity: 0.6 }, svg);
+    var refT = svgEl("text", { x: W - m.r - 6, y: refY - 4, "text-anchor": "end", "font-size": 11, fill: "var(--accent)", "font-weight": 600 }, svg);
+    refT.textContent = "Mean MSBE ≈ 0.0009";
+
+    // Tooltip
+    var tip = svgEl("g", { opacity: "0", style: "pointer-events:none; transition:opacity .15s" }, svg);
+    var tipLine = svgEl("line", { y1: m.t, y2: m.t + ih, stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "3 2" }, tip);
+    var tipDot = svgEl("circle", { r: 4.5, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2 }, tip);
+    var tipBox = svgEl("rect", { height: 24, rx: 4, fill: "var(--surface)", stroke: "var(--line)", "stroke-width": 1 }, tip);
+    var tipTxt = svgEl("text", { y: 0, "font-size": 11, "font-weight": 600, fill: "var(--ink)" }, tip);
+
+    svg.addEventListener("mousemove", function(e) {
+      var rect = svg.getBoundingClientRect();
+      var svgX = (e.clientX - rect.left) * (W / rect.width);
+      if (svgX < m.l || svgX > W - m.r) { tip.setAttribute("opacity", "0"); return; }
+      var frac = (svgX - m.l) / iw;
+      var idx = Math.max(0, Math.min(CURRICULUM_POINTS.length - 1, Math.round(frac * (CURRICULUM_POINTS.length - 1))));
+      var p = CURRICULUM_POINTS[idx];
+      var px = m.l + iw * (p[0] / maxEp);
+      var py = m.t + ih - ih * Math.min(maxLoss, p[2]) / maxLoss;
+      tipLine.setAttribute("x1", px); tipLine.setAttribute("x2", px);
+      tipDot.setAttribute("cx", px); tipDot.setAttribute("cy", py);
+      tipTxt.textContent = "Ep " + p[0] + ": loss " + p[2].toFixed(4);
+      var tw = 135;
+      var bx = px + 10;
+      if (bx + tw > W - m.r) bx = px - tw - 10;
+      tipBox.setAttribute("x", bx); tipBox.setAttribute("y", py - 12); tipBox.setAttribute("width", tw);
+      tipTxt.setAttribute("x", bx + 8); tipTxt.setAttribute("y", py + 4);
+      tip.setAttribute("opacity", "1");
+    });
+    svg.addEventListener("mouseleave", function() { tip.setAttribute("opacity", "0"); });
+
+    target.appendChild(svg);
+  }
+
+  function drawRewardMovesChart(target) {
+    var W = 800, H = 300, m = { l: 55, r: 55, t: 28, b: 50 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var maxEp = 60000;
+    var minR = 0.0, maxR = 1.2;
+    var minM = 0.0, maxM = 16.0;
+
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", role: "img", "aria-label": "Evaluation reward and mean moves per episode" }, null);
+    svg.style.maxHeight = "46vh";
+
+    CURRICULUM_STAGES.forEach(function (st, idx) {
+      var x1 = m.l + iw * (st.start / maxEp);
+      var x2 = m.l + iw * (st.end / maxEp);
+      var w = x2 - x1;
+      svgEl("rect", { x: x1, y: m.t, width: w, height: ih, fill: st.color, opacity: idx % 2 === 0 ? "0.06" : "0.02" }, svg);
+      if (idx > 0) {
+        svgEl("line", { x1: x1, x2: x1, y1: m.t, y2: m.t + ih, stroke: "var(--line)", "stroke-width": 1.2, "stroke-dasharray": "4 3" }, svg);
+      }
+      var lab = svgEl("text", { x: x1 + w / 2, y: m.t - 8, "text-anchor": "middle", "font-size": 12, "font-weight": 600, fill: st.color }, svg);
+      lab.textContent = st.tag;
+    });
+
+    // Left Y grid and ticks (Reward: 0.0 to 1.2)
+    for (var r = 0.0; r <= maxR + 0.01; r += 0.3) {
+      var y = m.t + ih - ih * ((r - minR) / (maxR - minR));
+      svgEl("line", { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: "var(--line)", "stroke-width": 1 }, svg);
+      var t = svgEl("text", { x: m.l - 8, y: y + 4, "text-anchor": "end", "font-size": 11, fill: "var(--ok)", "font-weight": 600 }, svg);
+      t.textContent = r.toFixed(1);
+    }
+
+    // Right Y ticks (Moves: 0 to 16)
+    for (var mv = 0; mv <= maxM; mv += 4) {
+      var y = m.t + ih - ih * ((mv - minM) / (maxM - minM));
+      var tm = svgEl("text", { x: W - m.r + 8, y: y + 4, "text-anchor": "start", "font-size": 11, fill: "var(--chaos)", "font-weight": 600 }, svg);
+      tm.textContent = mv.toFixed(0);
+    }
+
+    [0, 10000, 20000, 30000, 40000, 50000, 60000].forEach(function (ep) {
+      var x = m.l + iw * (ep / maxEp);
+      var tx = svgEl("text", { x: x, y: m.t + ih + 18, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, svg);
+      tx.textContent = (ep / 1000).toFixed(0) + "k";
+    });
+    var xLab = svgEl("text", { x: m.l + iw / 2, y: m.t + ih + 38, "text-anchor": "middle", "font-size": 12, "font-weight": 600, fill: "var(--muted)" }, svg);
+    xLab.textContent = "Training episode (continuous across 5 stages)";
+
+    var rewardPath = "";
+    var movesPath = "";
+    CURRICULUM_POINTS.forEach(function (p, i) {
+      var x = m.l + iw * (p[0] / maxEp);
+      var yR = m.t + ih - ih * ((p[3] - minR) / (maxR - minR));
+      var yM = m.t + ih - ih * ((p[4] - minM) / (maxM - minM));
+      rewardPath += (i === 0 ? "M " : " L ") + x.toFixed(1) + " " + yR.toFixed(1);
+      movesPath += (i === 0 ? "M " : " L ") + x.toFixed(1) + " " + yM.toFixed(1);
+    });
+
+    svgEl("path", { d: rewardPath, fill: "none", stroke: "var(--ok)", "stroke-width": 2.2 }, svg);
+    svgEl("path", { d: movesPath, fill: "none", stroke: "var(--chaos)", "stroke-width": 2.0, "stroke-dasharray": "5 3" }, svg);
+
+    // Tooltip
+    var tip = svgEl("g", { opacity: "0", style: "pointer-events:none; transition:opacity .15s" }, svg);
+    var tipLine = svgEl("line", { y1: m.t, y2: m.t + ih, stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "3 2" }, tip);
+    var tipDotR = svgEl("circle", { r: 4.5, fill: "var(--ok)", stroke: "var(--surface)", "stroke-width": 2 }, tip);
+    var tipDotM = svgEl("circle", { r: 4.5, fill: "var(--chaos)", stroke: "var(--surface)", "stroke-width": 2 }, tip);
+    var tipBox = svgEl("rect", { height: 38, rx: 4, fill: "var(--surface)", stroke: "var(--line)", "stroke-width": 1 }, tip);
+    var tipTxtR = svgEl("text", { y: 0, "font-size": 11, "font-weight": 600, fill: "var(--ok)" }, tip);
+    var tipTxtM = svgEl("text", { y: 0, "font-size": 11, "font-weight": 600, fill: "var(--chaos)" }, tip);
+
+    svg.addEventListener("mousemove", function(e) {
+      var rect = svg.getBoundingClientRect();
+      var svgX = (e.clientX - rect.left) * (W / rect.width);
+      if (svgX < m.l || svgX > W - m.r) { tip.setAttribute("opacity", "0"); return; }
+      var frac = (svgX - m.l) / iw;
+      var idx = Math.max(0, Math.min(CURRICULUM_POINTS.length - 1, Math.round(frac * (CURRICULUM_POINTS.length - 1))));
+      var p = CURRICULUM_POINTS[idx];
+      var px = m.l + iw * (p[0] / maxEp);
+      var pyR = m.t + ih - ih * ((p[3] - minR) / (maxR - minR));
+      var pyM = m.t + ih - ih * ((p[4] - minM) / (maxM - minM));
+      tipLine.setAttribute("x1", px); tipLine.setAttribute("x2", px);
+      tipDotR.setAttribute("cx", px); tipDotR.setAttribute("cy", pyR);
+      tipDotM.setAttribute("cx", px); tipDotM.setAttribute("cy", pyM);
+      tipTxtR.textContent = "Reward: " + (p[3] >= 0 ? "+" : "") + p[3].toFixed(2);
+      tipTxtM.textContent = "Moves: " + p[4].toFixed(1);
+      var tw = 115;
+      var bx = px + 10;
+      if (bx + tw > W - m.r) bx = px - tw - 10;
+      var by = Math.min(pyR, pyM) - 20;
+      if (by < m.t) by = m.t + 10;
+      tipBox.setAttribute("x", bx); tipBox.setAttribute("y", by); tipBox.setAttribute("width", tw);
+      tipTxtR.setAttribute("x", bx + 8); tipTxtR.setAttribute("y", by + 15);
+      tipTxtM.setAttribute("x", bx + 8); tipTxtM.setAttribute("y", by + 30);
+      tip.setAttribute("opacity", "1");
+    });
+    svg.addEventListener("mouseleave", function() { tip.setAttribute("opacity", "0"); });
+
+    target.appendChild(svg);
+
+    var lg = document.createElement("div");
+    lg.className = "legend";
+    lg.style.justifyContent = "center";
+    lg.style.marginTop = ".4em";
+    lg.innerHTML = 
+      "<span><i style='background:var(--ok)'></i><b>Mean Eval Reward</b> (left axis)</span>" +
+      "<span style='margin-left:1.5em'><i style='background:var(--chaos);border-radius:2px'></i><b>Mean Moves to Win</b> (right axis)</span>";
+    target.appendChild(lg);
+  }
+
+  drawLossChart(document.getElementById("chart-loss"));
+  drawRewardMovesChart(document.getElementById("chart-reward-moves"));
 
   (function () {
     var rows = [
